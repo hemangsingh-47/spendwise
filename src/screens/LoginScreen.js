@@ -36,10 +36,19 @@ export default function LoginScreen({ navigation }) {
       return;
     }
 
-    // 3. Frontend-only demo feedback (Strict Phase 3 Scope: No backend/auth yet)
+    // 3. Frontend-only demo feedback (Navigate to Main Dashboard)
     const successMsg = `Demo Login Successful!\nEmail: ${email.trim()}`;
     setDemoMessage(successMsg);
-    Alert.alert('SpendWise Demo', successMsg);
+    Alert.alert(
+      'SpendWise Demo',
+      `${successMsg}\n\nProceed to main dashboard?`,
+      [
+        {
+          text: 'Open Dashboard',
+          onPress: () => navigation.navigate(ROUTES.MAIN_APP),
+        },
+      ]
+    );
   };
 
   return (
@@ -109,6 +118,14 @@ export default function LoginScreen({ navigation }) {
           variant="primary"
           onPress={handleLogin}
           style={styles.loginButton}
+        />
+
+        {/* Instant Demo Preview Button for Viva/Evaluation */}
+        <Button
+          title="Explore Dashboard (Demo Access) →"
+          variant="secondary"
+          onPress={() => navigation.navigate(ROUTES.MAIN_APP)}
+          style={styles.demoAccessButton}
         />
 
         {/* Footer Navigation Link to Register */}
@@ -202,6 +219,9 @@ const styles = StyleSheet.create({
     color: colors.darkGrey,
   },
   loginButton: {
+    marginBottom: spacing.sm,
+  },
+  demoAccessButton: {
     marginBottom: spacing.lg,
   },
   footerContainer: {
