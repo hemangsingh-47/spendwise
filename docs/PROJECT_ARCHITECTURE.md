@@ -67,33 +67,92 @@ SpendWise/
 
 ---
 
-## 4. Screen Organization & Navigation Structure
+## 4. Screen Organization & Navigation Structure (Phases 1–5)
 
-In Phases 1–3, the navigation architecture centers around the **Authentication Stack**:
+The app utilizes a composite navigation architecture combining React Navigation **Native Stack** and **Bottom Tabs**:
 
 ```text
 NavigationContainer
-└── AuthNavigator (Native Stack)
-    ├── LoginScreen ("Login")
-    ├── RegisterScreen ("Register")
-    └── ForgotPasswordScreen ("ForgotPassword")
+└── Root Stack Navigator
+    ├── Auth Stack
+    │   ├── LoginScreen ("Login")
+    │   ├── RegisterScreen ("Register")
+    │   └── ForgotPasswordScreen ("ForgotPassword")
+    │
+    ├── MainApp (Bottom Tab Navigator)
+    │   ├── Home ("DashboardScreen")
+    │   ├── Transactions ("TransactionsScreen")
+    │   ├── Budgets ("BudgetsPlaceholderScreen")
+    │   └── Profile ("ProfilePlaceholderScreen")
+    │
+    ├── Transaction Modals & Screens
+    │   ├── AddTransactionScreen ("AddTransaction")
+    │   ├── EditTransactionScreen ("EditTransaction")
+    │   └── TransactionDetailsScreen ("TransactionDetails")
+    │
+    └── DesignSystemPreviewScreen ("DesignSystemPreview")
 ```
-
-- **Transitions:**
-  - `LoginScreen` ➔ `RegisterScreen` (`navigation.navigate('Register')`)
-  - `LoginScreen` ➔ `ForgotPasswordScreen` (`navigation.navigate('ForgotPassword')`)
-  - `RegisterScreen` ➔ `LoginScreen` (`navigation.navigate('Login')` or `navigation.goBack()`)
-  - `ForgotPasswordScreen` ➔ `LoginScreen` (`navigation.navigate('Login')` or `navigation.goBack()`)
 
 ---
 
-## 5. Frontend & Backend Separation (Strict Scope Boundary)
+## 5. Backend Architecture (Phase 6)
 
-- **Current State (Phases 1–3):**
-  - Completely **Frontend-only**.
-  - All form validation occurs locally using client-side JavaScript regex and length checks.
-  - No network requests, mock endpoints, or localStorage / AsyncStorage are executed.
-- **Future Scope (Phases 7–10):**
-  - Dedicated Node.js & Express REST API server.
-  - MongoDB database integration.
-  - JWT tokens stored in AsyncStorage.
+The backend follows the industry-standard **MVC (Model-View-Controller)** pattern:
+
+```text
+backend/
+├── src/
+│   ├── config/db.js                  # Mongoose MongoDB connection pool
+│   ├── models/                       # Mongoose Schemas & Data validation
+│   │   ├── User.js                   # User credentials & currency
+│   │   ├── Transaction.js            # Income/Expense amounts, categories, dates
+│   │   └── Budget.js                 # Monthly category limit targets
+│   ├── controllers/                  # Business logic & request handling
+│   │   └── transactionController.js  # CRUD operations, query filters & pagination
+│   ├── routes/                       # Express router endpoints
+│   │   ├── transactionRoutes.js      # /api/v1/transactions
+│   │   ├── authRoutes.js             # Placeholder for Phase 7
+│   │   └── budgetRoutes.js           # Placeholder for Phase 9
+│   ├── middleware/                   # Express middlewares
+│   │   └── errorMiddleware.js        # 404 & Centralized error handler
+│   ├── app.js                        # Express app & middleware configuration
+│   └── server.js                     # HTTP server listener & graceful shutdown
+└── test/api.test.js                  # Automated test suite (11/11 tests)
+```
+
+---
+
+## 6. Frontend-Backend Communication Blueprint (Future Integration in Phase 10)
+
+```mermaid
+sequenceDiagram
+    participant UI as React Native UI (TransactionsScreen)
+    participant Context as TransactionContext (React Hook)
+    participant API as Axios / Fetch Service Layer
+    participant Express as Express REST API (Node.js)
+    participant DB as MongoDB Database (Mongoose)
+
+    Note over UI,Context: Current Phase (Phase 5): State managed in Context API
+    UI->>Context: addTransaction(newTx)
+    Context-->>UI: Updates UI instantly via useState
+
+    Note over Context,DB: Future Phase (Phase 10 Integration):
+    UI->>Context: dispatch Add Transaction
+    Context->>API: POST /api/v1/transactions
+    API->>Express: HTTP Request + Bearer JWT Token
+    Express->>Express: authMiddleware verifies JWT
+    Express->>DB: Transaction.create({ ...data, userId })
+    DB-->>Express: Saved Document
+    Express-->>API: 201 Created JSON Response
+    API-->>Context: Update local state with DB record
+    Context-->>UI: Re-render with confirmed record
+```
+
+---
+
+## 7. Scope Boundaries Summary
+
+- **Phases 1–3:** Complete Authentication UI & Design System.
+- **Phases 4–5:** Main Tab Navigation, Dashboard, Transaction List with Search & Filters, Add/Edit/Delete CRUD forms, and React Context state.
+- **Phase 6:** Express.js REST API, MongoDB connection, User/Transaction/Budget Mongoose models, and verified transaction endpoints.
+- **Phase 7+ (Future):** JWT authentication, login token storage, and mobile-backend live connection.

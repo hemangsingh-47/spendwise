@@ -260,3 +260,217 @@ if (password !== confirmPassword) {
 **Answer:** In professional software engineering and clean agile milestones, UI/UX architecture and responsive components are finalized first. Decoupling the frontend avoids backend dependency blockers and ensures that the design system and navigation flow are robust before connecting databases and REST APIs.
 
 ---
+
+
+# PHASE 4: NAVIGATION & DASHBOARD UI
+
+## 1. What We Built
+- **Bottom Tab Navigation (`MainTabNavigator.js`):**
+  - Integrated `@react-navigation/bottom-tabs` with clean Ionicons matching the monochrome theme.
+  - 4 Main Tabs: **Home**, **Transactions**, **Budgets** (placeholder), and **Profile** (placeholder).
+- **Dashboard Screen (`DashboardScreen.js`):**
+  - **Header:** Personalized greeting, student demo name tag (`Hemang Singh`), current month label (`November 2026`), and profile avatar shortcut.
+  - **BalanceCard:** Large prominent total balance card in dark monochrome style.
+  - **SummaryCard:** Side-by-side cards displaying Total Inflow (`↑ Income`) and Outflow (`↓ Expenses`) with transaction counts.
+  - **QuickActionButton:** Fast access buttons to Add Expense, Add Income, and View All Transactions.
+  - **Monthly Overview Card:** Detailed breakdown of inflow, outflow, and net remaining savings.
+  - **Recent Transactions Section:** Displays the 5 most recent transactions with subtle badges, dates, and amounts.
+- **Separate Mock Data File (`src/data/mockTransactions.js`):**
+  - Clearly marked temporary mock transaction data to allow immediate UI preview without mixing into backend services.
+
+---
+
+## 2. Core Concepts Explained (Hinglish Explanation)
+
+### A. Bottom Tab Navigation vs Stack Navigation
+- **English:** Bottom Tab Navigation keeps primary destinations permanently accessible at the bottom of the screen. Stack Navigation manages hierarchical deep-dive screens (e.g. going from list to details).
+- **Hinglish:** Bottom Tab Navigation mobile app ke main sections (Home, Transactions, Budgets, Profile) ke beech switch karne ke kaam aati hai jo screen ke bottom me hamesha dikhti hai. Jabki Stack Navigation ek ke upar ek screen push karne ke liye hoti hai (jaise Transaction tap karne par Details screen khulna).
+
+### B. FlatList vs ScrollView in Dashboard
+- **English:** ScrollView is suitable for fixed-length layout containers with diverse sections (like our dashboard), whereas FlatList is optimized for potentially long dynamic data lists using item virtualization.
+- **Hinglish:** Dashboard me humne `ScrollView` use kiya kyunki wahan limited widgets hain (Header, BalanceCard, QuickActions, Overview). Par jab hum lambi list render karte hain (jaise Transactions tab me), tab hum `FlatList` use karte hain taaki memory save ho aur app smooth chale.
+
+### C. Dashboard Data Flow
+- **English:** Dashboard consumes the centralized `TransactionContext`. Derived values (total balance, total income, total expenses) are computed automatically using `useMemo`, ensuring fast performance and instant synchronization when transactions are added or edited.
+- **Hinglish:** Dashboard koi hardcoded data display nahi karta. Yeh `useTransactions()` hook se data leta hai. Jab user koi naya expense add karta hai, toh Context ka state change hota hai aur Dashboard ka balance automatically recalculate ho kar real-time update ho jaata hai.
+
+---
+
+# PHASE 5: TRANSACTION MANAGEMENT UI (CRUD)
+
+## 1. What We Built
+- **Transactions Screen (`TransactionsScreen.js`):**
+  - Search bar to search by description or category in real-time.
+  - Type filter tabs: All, ↑ Income, ↓ Expense.
+  - Category filter pills horizontally scrollable: Food, Transport, Shopping, Education, Entertainment, Health, Bills, Salary, Freelance, Other.
+  - Empty state with illustration and quick "Add New Transaction" button.
+  - Loading and Error state containers.
+- **Add Transaction Screen (`AddTransactionScreen.js`):**
+  - Dynamic type selector (Income vs Expense).
+  - Validated numeric amount input.
+  - Category selection pills tailored to chosen type.
+  - Description and date inputs.
+  - Payment method picker (UPI, Cash, Debit Card, Credit Card, Net Banking).
+- **Edit Transaction Screen (`EditTransactionScreen.js`):**
+  - Loads existing transaction values into controlled inputs via `useEffect`.
+  - Allows editing type, amount, category, description, and date with full validation.
+- **Transaction Details Screen (`TransactionDetailsScreen.js`):**
+  - Full record breakdown with formatted currency, record ID, and timestamps.
+  - Edit shortcut button.
+  - Delete button with confirmation alert before removal.
+- **State Management (`src/context/TransactionContext.js`):**
+  - Pure React Context API providing global transaction state, `addTransaction`, `editTransaction`, `deleteTransaction`, and `getTransactionById`.
+
+---
+
+## 2. Core Concepts Explained (Hinglish Explanation)
+
+### A. Controlled Inputs in React Native
+- **English:** A controlled input is a `TextInput` whose value is tied to React state and updated via `onChangeText`. React serves as the single source of truth for the input field.
+- **Hinglish:** Controlled input me input box ki value directly component ke state se bandhi hoti hai (`value={amount}`). Jab user type karta hai, `onChangeText` state ko update karta hai. Isse hum validation aur formatting real-time control kar sakte hain.
+
+### B. Context API for State Management
+- **English:** React Context provides a way to share data across the entire component tree without having to pass props down manually at every level (avoiding "prop drilling").
+- **Hinglish:** Context API ek global storage box ki tarah hai. Agar humein Dashboard aur Transactions tab dono me transactions ka data chahiye, toh humein props se pass karne ki zaroorat nahi hai. Hum `TransactionProvider` bana kar usme saara data aur functions rakh dete hain, aur koi bhi screen `useTransactions()` likh kar use access kar sakti hai.
+
+### C. Client-Side CRUD Operations
+- **English:** CRUD stands for Create, Read, Update, Delete. In Phase 5, these are performed in memory inside React state before server sync in later phases.
+- **Hinglish:**
+  - **Create:** User form bharta hai aur `addTransaction()` nayi transaction ko array ke shuru me daal deta hai (`[newTx, ...prev]`).
+  - **Read:** `FlatList` array ko iterate karke screen par display karti hai.
+  - **Update:** `editTransaction()` array me target ID dhundh kar `map()` ke through uske fields update kar deta hai.
+  - **Delete:** `deleteTransaction()` `filter()` method use karke us transaction ko array se remove kar deta hai.
+
+---
+
+# PHASE 6: BACKEND INFRASTRUCTURE & MONGODB APIS
+
+## 1. What We Built
+- **Backend Directory (`backend/`):**
+  - Separated from the mobile client to establish clean frontend-backend boundary.
+  - `package.json` with `express`, `mongoose`, `cors`, and `dotenv`.
+  - `.env.example` defining `PORT`, `MONGODB_URI`, and `CLIENT_ORIGIN`.
+- **Database Connection (`backend/src/config/db.js`):**
+  - Mongoose connection pool with graceful timeout and connection event logging.
+- **Mongoose Data Models (`backend/src/models/`):**
+  - `User.js`: Schema for users (name, email, password, currency, timestamps).
+  - `Transaction.js`: Schema for transactions (userId ref, type, amount > 0, category, description, date, paymentMethod, compound index).
+  - `Budget.js`: Schema for budgets (userId ref, category, limit, month, year, unique compound index on userId + category + month + year).
+- **Transaction REST APIs (`backend/src/controllers/transactionController.js`):**
+  - `POST /api/v1/transactions`: Creates and validates transactions.
+  - `GET /api/v1/transactions`: Fetches transactions with query filtering (`type`, `category`) and pagination (`page`, `limit`).
+  - `GET /api/v1/transactions/:id`: Retrieves single transaction; validates ObjectId format.
+  - `PUT /api/v1/transactions/:id`: Updates fields with validation.
+  - `DELETE /api/v1/transactions/:id`: Deletes record.
+- **Centralized Error Middleware (`backend/src/middleware/errorMiddleware.js`):**
+  - Unified JSON error responses for CastError, ValidationError, duplicate key, and 404s.
+- **Automated Test Suite (`backend/test/api.test.js`):**
+  - Complete test script executing 11/11 tests against live MongoDB and reporting results.
+
+---
+
+## 2. Core Concepts Explained (Hinglish Explanation)
+
+### A. What is Node.js and Express.js?
+- **English:** Node.js is a JavaScript runtime environment that lets developers run JavaScript on the server outside a web browser. Express.js is a minimalist web framework for Node.js that provides routing, middleware, and HTTP request handling.
+- **Hinglish:** Node.js humein JavaScript ko server side par run karne ki power deta hai (jaise C++ ya Java backend me kaam aati hai). Express.js Node ka ek framework hai jisse hum REST APIs (endpoints jaise GET, POST) bohot aasaani se bana sakte hain.
+
+### B. What is MongoDB and Mongoose?
+- **English:** MongoDB is a NoSQL document database that stores data in flexible, JSON-like documents. Mongoose is an Object Data Modeling (ODM) library for MongoDB and Node.js that manages data relationships, schemas, and validations.
+- **Hinglish:** MongoDB ek NoSQL database hai jisme tables aur rows ki jagah JSON jaise documents me data store hota hai. Mongoose ek library hai jo data ka schema (rules) define karti hai—jaise amount number hona chahiye, category required honi chahiye, etc.
+
+### C. What is a REST API and HTTP Methods?
+- **English:** REST (Representational State Transfer) is an architectural style for network applications using standard HTTP request methods:
+  - `GET`: Retrieve data from server.
+  - `POST`: Create new data on server.
+  - `PUT`: Update existing data completely or partially.
+  - `DELETE`: Remove data from server.
+- **Hinglish:** REST API ek rulebook hai jisse frontend (React Native) aur backend (Express) aapas me baat karte hain. Frontend HTTP request bhejta hai aur backend JSON data return karta hai:
+  - Jab user naya transaction submit kare -> `POST`
+  - Jab user transactions list mangwaye -> `GET`
+  - Jab user edit kare -> `PUT`
+  - Jab user delete kare -> `DELETE`
+
+### D. What is Middleware?
+- **English:** Middleware functions in Express are functions that have access to the request object (`req`), response object (`res`), and the `next` function in the application's request-response cycle.
+- **Hinglish:** Middleware ek security guard ya checkpoint ki tarah hota hai jo request aane par aur response jaane se pehle beech me execute hota hai. Jaise `express.json()` incoming request body ko parse karta hai, aur `errorMiddleware` errors ko pakad kar clean format me bhejta hai.
+
+### E. What is CORS?
+- **English:** CORS (Cross-Origin Resource Sharing) is an HTTP-header based security mechanism that allows a server to indicate any origins other than its own from which a browser or mobile app is permitted to load resources.
+- **Hinglish:** Security ke liye browsers aur servers anjaan origins ki requests ko block kar dete hain. `cors()` middleware use karke hum Express server ko batate hain ki hamari React Native app se aane wali requests safe hain aur unhe accept karo.
+
+### F. What is MVC Architecture?
+- **English:** Model-View-Controller separates an application into three main components: Model (Database schema & queries), View (Frontend React Native UI), and Controller (Express business logic).
+- **Hinglish:** MVC code ko 3 hisson me baant ta hai:
+  - **Model (`src/models/`):** Database ka blueprint aur structure (User, Transaction).
+  - **View (`src/screens/`):** Jo user ko mobile screen par dikhta hai.
+  - **Controller (`src/controllers/`):** Jo data ko process karta hai aur model aur view ke beech communication karwata hai.
+
+---
+
+# VIVA QUESTIONS & ANSWERS (TOP 18 FOR CSE 2ND YEAR VIVA)
+
+### Q1. What is the difference between Stack Navigation and Bottom Tab Navigation in React Navigation?
+**Answer:** Bottom Tab Navigation keeps the primary, top-level application screens (Home, Transactions, Budgets, Profile) accessible at the bottom of the screen at all times. Stack Navigation operates on a Last-In-First-Out (LIFO) stack of screens, pushing new sub-screens (like Add Transaction, Transaction Details) on top and popping them when the user navigates back.
+
+### Q2. Why is `FlatList` preferred over `ScrollView` when rendering long transaction lists?
+**Answer:** `ScrollView` renders all child elements into memory at once, which causes severe memory bottlenecks and UI lag when dealing with dozens or hundreds of items. `FlatList` uses virtualization: it renders only the items currently visible in the viewport and recycles off-screen views, ensuring smooth 60 FPS scrolling.
+
+### Q3. What is the role of `useMemo` in our `TransactionContext`?
+**Answer:** `useMemo` caches (memoizes) the calculation of derived financial metrics (total income, total expenses, net balance). It recomputes these values only when the `transactions` array changes, avoiding expensive re-calculations on every general component re-render.
+
+### Q4. What is a "Controlled Component" in React Native forms?
+**Answer:** A controlled component is an input element (like `TextInput`) whose current value is driven by React component state (`value={amount}`) and updated through an event callback (`onChangeText={setAmount}`). This allows the developer to inspect, format, and validate input on every keystroke.
+
+### Q5. What is the React Context API and why did we choose it over Redux for Phase 5?
+**Answer:** React Context provides a lightweight built-in mechanism for passing state across the component tree without prop drilling. For a second-year college project, Context API is clean, beginner-friendly, and has zero external dependencies, whereas Redux adds significant boilerplate (actions, reducers, dispatchers) that is unnecessary at this scale.
+
+### Q6. What is Node.js and how is it different from JavaScript in the browser?
+**Answer:** Node.js is an open-source, cross-platform JavaScript runtime built on Chrome's V8 engine that executes JavaScript code outside a browser. Browser JavaScript interacts with the DOM and window objects, while Node.js interacts with the operating system, file system, network sockets, and databases.
+
+### Q7. What is Express.js and what role does it play in the SpendWise architecture?
+**Answer:** Express.js is a minimalist web framework for Node.js. In SpendWise, it handles incoming HTTP REST API requests from the mobile client, routes them to controller functions, runs validation, interfaces with MongoDB via Mongoose, and returns structured JSON responses.
+
+### Q8. What is MongoDB and how does it differ from relational databases like MySQL?
+**Answer:** MongoDB is a NoSQL document database that stores records as flexible BSON (binary JSON) documents rather than rigid tables with rows and columns. It allows dynamic schemas, nested objects (embedded arrays), and horizontal scaling without requiring strict SQL schema migrations.
+
+### Q9. What is Mongoose and why do we use it with MongoDB?
+**Answer:** Mongoose is an Object Data Modeling (ODM) library for MongoDB and Node.js. Although MongoDB is schema-less, Mongoose provides schema validation, type casting, default values, pre/post middleware hooks, and model indexing to ensure data integrity.
+
+### Q10. What are the standard HTTP methods used in REST APIs and how are they used in SpendWise?
+**Answer:**
+- `GET /api/v1/transactions`: Retrieves transaction records and summary metrics.
+- `POST /api/v1/transactions`: Creates a new income or expense document in MongoDB.
+- `PUT /api/v1/transactions/:id`: Updates an existing transaction record.
+- `DELETE /api/v1/transactions/:id`: Deletes a specific transaction by its ID.
+
+### Q11. What is the purpose of HTTP status codes like 200, 201, 400, 404, and 500?
+**Answer:**
+- `200 OK`: Successful read, update, or delete operation.
+- `201 Created`: Successfully created a new document.
+- `400 Bad Request`: Client error (e.g. negative amount, missing category, invalid ObjectId).
+- `404 Not Found`: Target resource or endpoint does not exist.
+- `500 Internal Server Error`: Unexpected server or database exception.
+
+### Q12. How does centralized error-handling middleware work in Express?
+**Answer:** In Express, an error-handling middleware is defined with four parameters: `(err, req, res, next)`. When an error is passed to `next(err)` anywhere in a controller, Express bypasses normal routes and delegates execution to this middleware, which formats a consistent JSON error response and sets the correct HTTP status code.
+
+### Q13. What is a compound index in MongoDB and why did we add one to the Budget model?
+**Answer:** A compound index indexes multiple fields together. In the Budget model, we created a unique compound index on `{ userId: 1, category: 1, month: 1, year: 1 }`. This enforces a business rule at the database level: a user cannot accidentally create duplicate budgets for the same category in the same month and year.
+
+### Q14. Why did we separate the mock data file from backend services in Phase 4 and 5?
+**Answer:** To maintain separation of concerns. In software architecture, mock data is strictly for frontend UI simulation during early development. Keeping it isolated ensures that when we integrate the real Axios/fetch service in Phase 10, no mock data leaks into backend production workflows.
+
+### Q15. Why is `.env` added to `.gitignore` and what is `.env.example`?
+**Answer:** `.env` contains sensitive secrets, database connection strings, and API keys that must never be exposed publicly on GitHub. `.env.example` serves as a safe template containing placeholder keys so other developers or evaluators know which environment variables are required to run the project.
+
+### Q16. How will the React Native app communicate with the Express backend in future phases?
+**Answer:** The React Native app will use `fetch` or `Axios` to make asynchronous HTTP requests over the network (e.g. `http://<ip>:5000/api/v1/transactions`). The Express server will process the request, interact with MongoDB, and return JSON data which the app stores in state and displays on screen.
+
+### Q17. Why is authentication strictly isolated and not faked in Phase 6?
+**Answer:** Implementing fake or client-provided authentication introduces security vulnerabilities. In Phase 6, we isolated the temporary userId in the controller with explicit architectural markers so that in Phase 7, verified JWT authentication middleware can be introduced cleanly without leaving unauthenticated backdoors.
+
+### Q18. What is the purpose of `serverSelectionTimeoutMS` in Mongoose connection config?
+**Answer:** By default, Mongoose may hang for 30 seconds trying to reach an unreachable MongoDB server. Setting `serverSelectionTimeoutMS: 5000` causes Mongoose to fail fast after 5 seconds, providing an immediate, actionable error log rather than hanging the entire application startup.
+
+---

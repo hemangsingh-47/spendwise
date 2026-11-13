@@ -11,12 +11,12 @@ Track the 12 development phases of SpendWise (Personal Expense Tracker).
 | **Phase 1** | Project Setup & Architecture | Completed | Verified (Expo SDK 58, JavaScript blank template, Git remote configured) |
 | **Phase 2** | UI Design System | Completed | Verified (theme.js, Button, Input, Card, ScreenContainer, Typography, Preview Screen) |
 | **Phase 3** | Authentication UI | Completed | Verified (Login, Register, Forgot Password, Form Validation, React Navigation Stack) |
-| **Phase 4** | Dashboard & Analytics UI | Not Started | - |
-| **Phase 5** | Expense Management (Frontend) | Not Started | - |
-| **Phase 6** | Budget Management (Frontend) | Not Started | - |
-| **Phase 7** | Backend Setup & Database Connection | Not Started | - |
-| **Phase 8** | Backend Authentication & Security | Not Started | - |
-| **Phase 9** | Backend Expense & Budget APIs | Not Started | - |
+| **Phase 4** | Navigation & Dashboard UI | Completed | Verified (Bottom Tab Navigation, Dashboard Screen, Balance/Summary Cards, Quick Actions) |
+| **Phase 5** | Transaction Management UI | Completed | Verified (Transactions FlatList, Search & Filters, Add/Edit/Delete CRUD, Context API) |
+| **Phase 6** | Backend & Database (Node/Express/MongoDB) | Completed | Verified (Express App, MongoDB/Mongoose Connection, User/Transaction/Budget Models, REST APIs, 11/11 Automated API Tests Passed) |
+| **Phase 7** | Backend Authentication & Security (JWT) | Not Started | - |
+| **Phase 8** | Backend Expense & Budget APIs Integration | Not Started | - |
+| **Phase 9** | Advanced Budget Management APIs | Not Started | - |
 | **Phase 10** | Frontend-Backend API Integration | Not Started | - |
 | **Phase 11** | Local Storage & Offline Support | Not Started | - |
 | **Phase 12** | Testing, Optimization & Final Polish | Not Started | - |
@@ -24,6 +24,6 @@ Track the 12 development phases of SpendWise (Personal Expense Tracker).
 ---
 
 ## Scope Rules
-- Only **Phase 1**, **Phase 2**, and **Phase 3** are in scope for current development.
-- Phases 4 to 12 must not be started until explicit user approval.
+- **Phases 1 through 6** are fully completed, tested, and verified.
+- **Phases 7 to 12** are strictly outside current scope and must not be started until explicit user approval.
 - A phase is marked "Completed" only after automated and manual testing steps pass.
