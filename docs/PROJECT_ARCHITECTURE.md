@@ -95,57 +95,96 @@ NavigationContainer
 
 ---
 
-## 5. Backend Architecture (Phase 6)
+## 5. Backend Architecture (Phases 6–7)
 
-The backend follows the industry-standard **MVC (Model-View-Controller)** pattern:
+The backend follows the industry-standard **MVC (Model-View-Controller)** pattern with verified JWT authentication:
 
 ```text
 backend/
 ├── src/
 │   ├── config/db.js                  # Mongoose MongoDB connection pool
 │   ├── models/                       # Mongoose Schemas & Data validation
-│   │   ├── User.js                   # User credentials & currency
-│   │   ├── Transaction.js            # Income/Expense amounts, categories, dates
+│   │   ├── User.js                   # Bcrypt hashed credentials, currency, matchPassword
+│   │   ├── Transaction.js            # Income/Expense amounts, categories, user ref
 │   │   └── Budget.js                 # Monthly category limit targets
 │   ├── controllers/                  # Business logic & request handling
-│   │   └── transactionController.js  # CRUD operations, query filters & pagination
+│   │   ├── authController.js         # Register, Login, getMe, updateProfile, changePassword
+│   │   └── transactionController.js  # Scoped CRUD (req.user._id), filters & pagination
 │   ├── routes/                       # Express router endpoints
-│   │   ├── transactionRoutes.js      # /api/v1/transactions
-│   │   ├── authRoutes.js             # Placeholder for Phase 7
+│   │   ├── authRoutes.js             # /api/v1/auth (public & protected)
+│   │   ├── transactionRoutes.js      # /api/v1/transactions (protected by authMiddleware)
 │   │   └── budgetRoutes.js           # Placeholder for Phase 9
 │   ├── middleware/                   # Express middlewares
+│   │   ├── authMiddleware.js         # JWT Bearer token verification & req.user binding
 │   │   └── errorMiddleware.js        # 404 & Centralized error handler
+│   ├── utils/
+│   │   └── generateToken.js          # Signs HMAC SHA-256 JWT tokens with expiry
 │   ├── app.js                        # Express app & middleware configuration
 │   └── server.js                     # HTTP server listener & graceful shutdown
-└── test/api.test.js                  # Automated test suite (11/11 tests)
+└── test/
+    ├── api.test.js                   # Automated transaction CRUD tests (11/11 passed)
+    └── auth.test.js                  # Automated auth & security tests (14/14 passed)
 ```
 
 ---
 
-## 6. Frontend-Backend Communication Blueprint (Future Integration in Phase 10)
+## 6. Frontend Networking & State Architecture (Phase 8)
+
+The frontend integrates a modular 3-tier networking and state pipeline:
+
+```text
+src/
+├── constants/
+│   └── api.js                       # API_BASE_URL (platform specific) & STORAGE_KEYS
+├── services/
+│   ├── api.js                       # Axios instance with request/response interceptors
+│   ├── authService.js               # Auth HTTP endpoints & token memory cache
+│   └── transactionService.js        # Transaction CRUD endpoints
+└── context/
+    ├── AuthContext.js               # Authentication state, login/register/logout, AsyncStorage
+    └── TransactionContext.js        # Transactions state, live MongoDB sync, derived metrics
+```
+
+### Full End-to-End Data & Security Flow
 
 ```mermaid
 sequenceDiagram
-    participant UI as React Native UI (TransactionsScreen)
-    participant Context as TransactionContext (React Hook)
-    participant API as Axios / Fetch Service Layer
-    participant Express as Express REST API (Node.js)
-    participant DB as MongoDB Database (Mongoose)
+    autonumber
+    participant UI as React Native UI
+    participant AuthCtx as AuthContext / AsyncStorage
+    participant TxCtx as TransactionContext
+    participant ApiClient as Axios Service (src/services/api.js)
+    participant AuthMid as authMiddleware (backend)
+    participant Ctrl as Express Controller
+    participant DB as MongoDB (Mongoose)
 
-    Note over UI,Context: Current Phase (Phase 5): State managed in Context API
-    UI->>Context: addTransaction(newTx)
-    Context-->>UI: Updates UI instantly via useState
+    Note over UI,AuthCtx: 1. Authentication Flow
+    UI->>AuthCtx: login(email, password)
+    AuthCtx->>ApiClient: POST /api/v1/auth/login
+    ApiClient->>Ctrl: authController.login()
+    Ctrl->>DB: User.findOne({ email }).select('+password')
+    DB-->>Ctrl: User doc with bcrypt hash
+    Ctrl->>Ctrl: user.matchPassword(password)
+    Ctrl-->>ApiClient: 200 OK + JWT Token + User profile
+    ApiClient-->>AuthCtx: Token & User
+    AuthCtx->>AuthCtx: AsyncStorage.setItem('@spendwise_token')
+    AuthCtx-->>UI: Set isAuthenticated = true (Navigates to MainApp)
 
-    Note over Context,DB: Future Phase (Phase 10 Integration):
-    UI->>Context: dispatch Add Transaction
-    Context->>API: POST /api/v1/transactions
-    API->>Express: HTTP Request + Bearer JWT Token
-    Express->>Express: authMiddleware verifies JWT
-    Express->>DB: Transaction.create({ ...data, userId })
-    DB-->>Express: Saved Document
-    Express-->>API: 201 Created JSON Response
-    API-->>Context: Update local state with DB record
-    Context-->>UI: Re-render with confirmed record
+    Note over UI,DB: 2. Protected Transaction Operations
+    UI->>TxCtx: createTransaction(newTxData)
+    TxCtx->>ApiClient: POST /api/v1/transactions
+    ApiClient->>ApiClient: Request Interceptor: Attach Authorization: Bearer <JWT>
+    ApiClient->>AuthMid: HTTP Request + Bearer JWT
+    AuthMid->>AuthMid: jwt.verify(token, JWT_SECRET)
+    AuthMid->>DB: User.findById(decoded.id)
+    DB-->>AuthMid: req.user
+    AuthMid->>Ctrl: next()
+    Ctrl->>DB: Transaction.create({ ...data, userId: req.user._id })
+    DB-->>Ctrl: Saved Transaction document
+    Ctrl-->>ApiClient: 201 Created (JSON record)
+    ApiClient-->>TxCtx: Normalized Transaction
+    TxCtx->>TxCtx: Recompute Balance, Income, Expense via useMemo
+    TxCtx-->>UI: Live UI update without full reload
 ```
 
 ---
@@ -155,4 +194,6 @@ sequenceDiagram
 - **Phases 1–3:** Complete Authentication UI & Design System.
 - **Phases 4–5:** Main Tab Navigation, Dashboard, Transaction List with Search & Filters, Add/Edit/Delete CRUD forms, and React Context state.
 - **Phase 6:** Express.js REST API, MongoDB connection, User/Transaction/Budget Mongoose models, and verified transaction endpoints.
-- **Phase 7+ (Future):** JWT authentication, login token storage, and mobile-backend live connection.
+- **Phase 7:** Backend Authentication & Security: bcrypt password hashing, JWT token generation, `authMiddleware`, `authRoutes`, user isolation (preventing cross-user access), and 14/14 automated tests.
+- **Phase 8:** Mobile API & Context Integration: Axios client with Bearer token interceptor, AsyncStorage persistent session restore, `AuthContext`, `TransactionContext` live MongoDB sync, pull-to-refresh on FlatLists, and full CRUD screen wiring.
+- **Phases 9–12 (Future):** Budget management APIs, analytics/charts, offline SQLite caching, and production build/deployment.

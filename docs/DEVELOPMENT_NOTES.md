@@ -408,7 +408,137 @@ if (password !== confirmPassword) {
 
 ---
 
-# VIVA QUESTIONS & ANSWERS (TOP 18 FOR CSE 2ND YEAR VIVA)
+# PHASE 7: BACKEND AUTHENTICATION & SECURITY (JWT & BCRYPT)
+
+## 1. What We Built & Configured
+- **Dependencies Installed:** `bcryptjs` (password hashing) and `jsonwebtoken` (JWT token creation and verification) in `backend/package.json`.
+- **Environment Variables:** Configured `JWT_SECRET` and `JWT_EXPIRES_IN=7d` in `backend/.env` and `backend/.env.example`.
+- **User Model Security (`backend/src/models/User.js`):**
+  - Added Mongoose pre-save hook to hash plain-text passwords using `bcrypt.genSalt(10)` and `bcrypt.hash()`.
+  - Added instance method `matchPassword(enteredPassword)` using `bcrypt.compare()`.
+  - Added `toSafeObject()` helper to exclude password hash from JSON responses.
+- **JWT Token Generator (`backend/src/utils/generateToken.js`):**
+  - Signs payload `{ id: userId }` using HMAC SHA-256 with expiration.
+- **Auth Middleware (`backend/src/middleware/authMiddleware.js`):**
+  - Extracts HTTP Authorization header formatted as `Bearer <token>`.
+  - Verifies token integrity with `jwt.verify(token, process.env.JWT_SECRET)`.
+  - Fetches user from MongoDB (`User.findById(decoded.id).select('-password')`) and binds it to `req.user`.
+  - Returns structured `401 Unauthorized` for missing, expired, or tampered tokens.
+- **Auth Controller & Routes (`backend/src/controllers/authController.js`, `backend/src/routes/authRoutes.js`):**
+  - `POST /api/v1/auth/register`: Validates name, email, password; creates user; returns JWT token.
+  - `POST /api/v1/auth/login`: Verifies email and password; returns JWT token + user profile.
+  - `GET /api/v1/auth/me`: Protected route returning currently authenticated user profile.
+  - `PUT /api/v1/auth/profile`: Protected route updating name and preferred currency.
+  - `POST /api/v1/auth/change-password`: Protected route verifying current password before hashing new password.
+- **Strict Data Isolation in Transactions (`backend/src/controllers/transactionController.js`):**
+  - Replaced temporary fallback userId with verified `req.user._id`.
+  - All database queries (`find`, `findById`, `findByIdAndUpdate`, `findOneAndDelete`) enforce `{ userId: req.user._id }`.
+  - A user cannot view, edit, or delete another user's transactions (returns `404 Not Found`).
+- **Automated Test Suite (`backend/test/auth.test.js`):**
+  - 14 automated tests verifying user registration, duplicate email rejection, invalid password rejection, unauthorized route access, token verification, cross-user isolation, and bcrypt hash format.
+
+---
+
+## 2. Core Concepts Explained (Hinglish Explanation)
+
+### A. Authentication vs Authorization
+- **English:** Authentication verifies *who you are* (e.g. logging in with email and password). Authorization verifies *what you are allowed to do* (e.g. accessing only your own transactions and not another student's).
+- **Hinglish:**
+  - **Authentication (Pehchan):** User kon hai? Yeh check karna. Jaise College gate par ID card dikhana ya app me email/password daal kar login karna.
+  - **Authorization (Ijazat / Permissions):** User kya kar sakta hai? Login hone ke baad kya Hemang kisi doosre student Rahul ka expense dekh sakta hai? Bilkul nahi! Har user sirf apna data access kar sakta hai.
+
+### B. What is a JSON Web Token (JWT)?
+- **English:** A JWT is a compact, URL-safe token format consisting of three parts separated by dots: Header (algorithm), Payload (claims like `userId`), and Signature (cryptographic hash preventing tampering).
+- **Hinglish:** JWT ek digitally signed digital pass (token) hota hai. Isme 3 hisse hote hain:
+  1. **Header:** Batata hai ki token kis algorithm se sign hua hai (jaise HS256).
+  2. **Payload:** Isme user ki ID aur expiry time rehta hai.
+  3. **Signature:** Yeh backend ke secret key (`JWT_SECRET`) se banta hai.
+  Jab user login karta hai, server use JWT deta hai. Agli baar mobile app har request ke header me yeh token bhejti hai. Server bina database me session save kiye token verify kar leta hai (Stateless Authentication).
+
+### C. Why do we hash passwords with bcrypt?
+- **English:** Storing plain-text passwords is a severe security vulnerability. Bcrypt is an adaptive one-way cryptographic hashing function incorporating random salts and high computational work factors, protecting against rainbow table and brute-force attacks.
+- **Hinglish:** Agar database hack ho jaye ya koi inspect kare, toh kisi ka password plain text (jaise `password123`) me nahi dikhna chahiye. `bcrypt` password ko ek irreversible string me convert kar deta hai (jaise `$2b$10$e7...`). Salt add karne se do users ka same password hone par bhi database me alag hash banta hai. Hum kabhi password decrypt nahi karte; login ke waqt naye input ko hash karke purane hash se compare karte hain (`bcrypt.compare`).
+
+### D. How does `authMiddleware` work?
+- **English:** An Express middleware function that intercepts incoming requests, reads the `Authorization: Bearer <token>` header, verifies the signature, and attaches `req.user`. If invalid, it short-circuits the pipeline with a 401 response.
+- **Hinglish:** `authMiddleware` ek security guard ki tarah kaam karta hai. Protected routes se pehle yeh check karta hai ki request me valid token hai ya nahi. Agar token valid hai, toh token se user ki ID nikal kar `req.user` me attach kar deta hai aur `next()` call karta hai. Agar token galat ya gayab ho, toh request controller tak pahunchne se pehle hi 401 error ke sath reject ho jaati hai.
+
+### E. Why must the server NEVER trust a client-supplied `userId`?
+- **English:** Accepting `userId` from request parameters or bodies allows malicious clients to change the ID (Insecure Direct Object Reference - IDOR) and access or delete records belonging to other users.
+- **Hinglish:** Agar server mobile client ke bheje hue `userId` par bharosa karega, toh koi bhi hacker Postman se kisi aur ki user ID bhej kar uska bank balance ya transactions delete kar dega! Isliye server humesha verified JWT token se hi `req.user._id` nikalta hai.
+
+---
+
+# PHASE 8: MOBILE API & CONTEXT INTEGRATION
+
+## 1. What We Built & Configured
+- **Frontend Dependencies Installed:** `axios` (HTTP client) and `@react-native-async-storage/async-storage` (persistent key-value storage).
+- **Centralized API Constants (`src/constants/api.js`):**
+  - Defines `API_BASE_URL` with auto-detection for Android Emulator (`http://10.0.2.2:5000/api/v1`), iOS Simulator (`http://localhost:5000/api/v1`), and physical devices via local IP.
+  - Defines consistent storage keys (`@spendwise_token`, `@spendwise_user`).
+- **Axios Networking Service (`src/services/api.js`):**
+  - Configured with `timeout: 10000` (10 seconds) and `Content-Type: application/json`.
+  - **Request Interceptor:** Automatically attaches `Authorization: Bearer <token>` from in-memory cache or AsyncStorage on every outgoing request.
+  - **Response Error Interceptor:** Formats server error messages and catches 401 expired sessions.
+- **Auth Service (`src/services/authService.js`):**
+  - Functions for `register`, `login`, `getMe`, `updateProfile`, `changePassword`, `saveToken`, `clearToken`.
+- **Transaction Service (`src/services/transactionService.js`):**
+  - Functions for `getTransactions`, `getTransactionById`, `createTransaction`, `updateTransaction`, `deleteTransaction`.
+- **Auth Context (`src/context/AuthContext.js`):**
+  - Restores session on app startup by reading saved JWT from AsyncStorage and validating with `GET /api/v1/auth/me`.
+  - Provides `login`, `register`, `logout`, `updateProfile`, and `changePassword` methods across the app.
+- **Transaction Context Live MongoDB Integration (`src/context/TransactionContext.js`):**
+  - Syncs directly with Express backend REST APIs when `isAuthenticated` is true.
+  - Normalizes MongoDB `_id` to standard `id` for seamless UI compatibility.
+  - Calculates live `totalBalance`, `totalIncome`, and `totalExpenses` via `useMemo`.
+  - Exposes `refreshTransactions` for pull-to-refresh.
+- **Connected Screens:**
+  - `LoginScreen.js`: Uses real backend login, displays server errors, navigates to dashboard on success.
+  - `RegisterScreen.js`: Creates real user in MongoDB, saves JWT token, initializes session.
+  - `DashboardScreen.js`: Displays authenticated user name, real calculated balance, pull-to-refresh `RefreshControl`.
+  - `TransactionsScreen.js`: Live transaction list from MongoDB with pull-to-refresh on `FlatList`.
+  - `AddTransactionScreen.js`: Sends `POST /api/v1/transactions` to MongoDB with loading spinner.
+  - `EditTransactionScreen.js`: Sends `PUT /api/v1/transactions/:id` to MongoDB with loading spinner.
+  - `TransactionDetailsScreen.js`: Sends `DELETE /api/v1/transactions/:id` to MongoDB with confirmation prompt.
+  - `ProfilePlaceholderScreen.js`: Real user profile details, currency display, change password, and functional `logout()`.
+  - `AuthNavigator.js`: Protected navigation flow showing loading splash during session restore, rendering Auth stack when unauthenticated and MainApp stack when authenticated.
+
+---
+
+## 2. Core Concepts Explained (Hinglish Explanation)
+
+### A. Why Axios instead of native `fetch()`?
+- **English:** Axios automatically transforms JSON request and response payloads, handles HTTP error codes predictably (rejecting promises on 4xx/5xx), supports request/response interceptors, and allows default headers (like Bearer tokens) to be configured globally.
+- **Hinglish:** Native `fetch()` me response aane ke baad manually `await response.json()` karna padta hai aur `400` ya `500` status par bhi error throw nahi hota (`response.ok` check karna padta hai). `Axios` automatic JSON parsing deta hai, errors ko cleanly catch block me bhejta hai, aur **Interceptors** provide karta hai jisse hum har request ke sath JWT token automatically attach kar sakein.
+
+### B. What is an Axios Interceptor?
+- **English:** Middleware for HTTP requests and responses. A request interceptor runs before a request leaves the device (ideal for injecting the Bearer token), and a response interceptor runs before the response reaches calling code (ideal for global error formatting).
+- **Hinglish:** Interceptor ek automated toll plaza ya checkpost ki tarah hota hai. Jab bhi app server ko koi request bhejti hai, request interceptor beech me aakar Authorization header me `Bearer <token>` chipka deta hai. Humein har API call me token manually pass karne ki zaroorat nahi padti!
+
+### C. What is AsyncStorage and how does it compare to `localStorage`?
+- **English:** AsyncStorage is an asynchronous, unencrypted, persistent, key-value storage system for React Native (similar to browser `localStorage`, but operations are asynchronous and return Promises).
+- **Hinglish:** Web development me hum `localStorage.setItem()` use karte hain. Mobile apps me hum `@react-native-async-storage/async-storage` use karte hain. Jab user app band kar deta hai ya phone restart hota hai, tab bhi AsyncStorage me saved token aur user details safe rehte hain. Kyunki mobile me disk read/write slow ho sakta hai, iske saare methods `async/await` return karte hain taaki UI freeze na ho.
+
+### D. How does Session Restoration work on App Startup?
+- **English:** When the app launches, `AuthContext` runs a `useEffect` that reads the stored token from `AsyncStorage`. If present, it sets the in-memory Authorization header, calls `GET /api/v1/auth/me` to verify token validity, and updates `isAuthenticated: true`.
+- **Hinglish:**
+  1. User jab app open karta hai, toh `AuthNavigator` pehle loading splash screen dikhata hai.
+  2. `AuthContext` check karta hai: "Kya phone me pehle se token saved hai?"
+  3. Agar token milta hai, toh server ke `GET /api/v1/auth/me` endpoint par verify karta hai.
+  4. Agar valid hai, toh user ko bina password pooche seedhe **Dashboard** par bhej deta hai.
+  5. Agar token nahi hai ya expire ho chuka hai, toh **Login Screen** dikhata hai.
+
+### E. Why do we separate the Service Layer from UI Components?
+- **English:** The Service Layer (`src/services/`) encapsulates all HTTP communication details (endpoints, query params, headers). UI screens only call clean methods like `transactionService.createTransaction(data)`.
+- **Hinglish:** Agar har screen ke andar hum `axios.post('http://...')` likhenge, toh code messy ho jayega aur agar backend ka URL ya endpoint change hua toh 10 screens me jaakar edit karna padega. Service layer saari networking logic ko ek jagah rakhti hai, jisse screens sirf UI aur user experience par focus karti hain.
+
+### F. What is Pull-to-Refresh in React Native?
+- **English:** A common mobile UX pattern where pulling down on a scrollable list triggers a data re-fetch. In React Native, it is implemented using the `refreshControl` prop on `FlatList` or `ScrollView` with the `RefreshControl` component.
+- **Hinglish:** Jab user screen ko upar se neeche pull karta hai, toh ek circular spinner ghoomta hai aur server se taaza (fresh) data download ho jata hai. Isse user ko app restart kiye bina latest balance aur transactions dikh jate hain.
+
+---
+
+# VIVA QUESTIONS & ANSWERS (TOP 35 FOR CSE 2ND YEAR VIVA)
 
 ### Q1. What is the difference between Stack Navigation and Bottom Tab Navigation in React Navigation?
 **Answer:** Bottom Tab Navigation keeps the primary, top-level application screens (Home, Transactions, Budgets, Profile) accessible at the bottom of the screen at all times. Stack Navigation operates on a Last-In-First-Out (LIFO) stack of screens, pushing new sub-screens (like Add Transaction, Transaction Details) on top and popping them when the user navigates back.
@@ -422,7 +552,7 @@ if (password !== confirmPassword) {
 ### Q4. What is a "Controlled Component" in React Native forms?
 **Answer:** A controlled component is an input element (like `TextInput`) whose current value is driven by React component state (`value={amount}`) and updated through an event callback (`onChangeText={setAmount}`). This allows the developer to inspect, format, and validate input on every keystroke.
 
-### Q5. What is the React Context API and why did we choose it over Redux for Phase 5?
+### Q5. What is the React Context API and why did we choose it over Redux for SpendWise?
 **Answer:** React Context provides a lightweight built-in mechanism for passing state across the component tree without prop drilling. For a second-year college project, Context API is clean, beginner-friendly, and has zero external dependencies, whereas Redux adds significant boilerplate (actions, reducers, dispatchers) that is unnecessary at this scale.
 
 ### Q6. What is Node.js and how is it different from JavaScript in the browser?
@@ -444,11 +574,12 @@ if (password !== confirmPassword) {
 - `PUT /api/v1/transactions/:id`: Updates an existing transaction record.
 - `DELETE /api/v1/transactions/:id`: Deletes a specific transaction by its ID.
 
-### Q11. What is the purpose of HTTP status codes like 200, 201, 400, 404, and 500?
+### Q11. What is the purpose of HTTP status codes like 200, 201, 400, 401, 404, and 500?
 **Answer:**
 - `200 OK`: Successful read, update, or delete operation.
-- `201 Created`: Successfully created a new document.
+- `201 Created`: Successfully created a new document (user or transaction).
 - `400 Bad Request`: Client error (e.g. negative amount, missing category, invalid ObjectId).
+- `401 Unauthorized`: Request missing valid authentication credentials or token has expired.
 - `404 Not Found`: Target resource or endpoint does not exist.
 - `500 Internal Server Error`: Unexpected server or database exception.
 
@@ -459,18 +590,76 @@ if (password !== confirmPassword) {
 **Answer:** A compound index indexes multiple fields together. In the Budget model, we created a unique compound index on `{ userId: 1, category: 1, month: 1, year: 1 }`. This enforces a business rule at the database level: a user cannot accidentally create duplicate budgets for the same category in the same month and year.
 
 ### Q14. Why did we separate the mock data file from backend services in Phase 4 and 5?
-**Answer:** To maintain separation of concerns. In software architecture, mock data is strictly for frontend UI simulation during early development. Keeping it isolated ensures that when we integrate the real Axios/fetch service in Phase 10, no mock data leaks into backend production workflows.
+**Answer:** To maintain separation of concerns. In software architecture, mock data is strictly for frontend UI simulation during early development. Keeping it isolated ensures that when we integrate the real Axios service in Phase 8, no mock data leaks into backend production workflows.
 
 ### Q15. Why is `.env` added to `.gitignore` and what is `.env.example`?
-**Answer:** `.env` contains sensitive secrets, database connection strings, and API keys that must never be exposed publicly on GitHub. `.env.example` serves as a safe template containing placeholder keys so other developers or evaluators know which environment variables are required to run the project.
+**Answer:** `.env` contains sensitive secrets, database connection strings, and JWT keys that must never be exposed publicly on GitHub. `.env.example` serves as a safe template containing placeholder keys so other developers or evaluators know which environment variables are required to run the project.
 
-### Q16. How will the React Native app communicate with the Express backend in future phases?
-**Answer:** The React Native app will use `fetch` or `Axios` to make asynchronous HTTP requests over the network (e.g. `http://<ip>:5000/api/v1/transactions`). The Express server will process the request, interact with MongoDB, and return JSON data which the app stores in state and displays on screen.
+### Q16. What is JSON Web Token (JWT) and what are its three parts?
+**Answer:** JWT is an open standard (RFC 7519) for securely transmitting information between parties as a JSON object. Its three parts are:
+1. **Header:** Contains token type (`JWT`) and the signing algorithm (e.g. `HS256`).
+2. **Payload:** Contains claims such as user ID (`id`) and expiration timestamp (`exp`).
+3. **Signature:** Generated by hashing the base64-encoded header and payload with a secret key (`JWT_SECRET`).
 
-### Q17. Why is authentication strictly isolated and not faked in Phase 6?
-**Answer:** Implementing fake or client-provided authentication introduces security vulnerabilities. In Phase 6, we isolated the temporary userId in the controller with explicit architectural markers so that in Phase 7, verified JWT authentication middleware can be introduced cleanly without leaving unauthenticated backdoors.
+### Q17. Why is JWT authentication considered "stateless"?
+**Answer:** Traditional session-based authentication requires the server to store active session IDs in server memory or a database (like Redis). In contrast, with JWT, all required user state is contained inside the signed token itself. The server simply verifies the digital signature without performing a database lookup on every single request, enabling horizontal scalability.
 
-### Q18. What is the purpose of `serverSelectionTimeoutMS` in Mongoose connection config?
-**Answer:** By default, Mongoose may hang for 30 seconds trying to reach an unreachable MongoDB server. Setting `serverSelectionTimeoutMS: 5000` causes Mongoose to fail fast after 5 seconds, providing an immediate, actionable error log rather than hanging the entire application startup.
+### Q18. How does `bcrypt` prevent rainbow table and dictionary attacks?
+**Answer:** Bcrypt generates a random cryptographic salt for each password before hashing and incorporates a configurable "cost factor" (work factor). The salt ensures that identical passwords produce completely different hash strings, defeating precomputed rainbow tables. The work factor deliberately slows down hash computation, making brute-force dictionary attacks computationally prohibitive.
+
+### Q19. What is the difference between encryption and hashing?
+**Answer:** Hashing is a one-way mathematical function: once data (like a password) is hashed, it cannot be decrypted back into plain text. Encryption is a two-way function where ciphertext can be decrypted back into plain text using a secret key. Passwords must always be hashed, never encrypted.
+
+### Q20. How does the `authMiddleware` verify user authorization on private endpoints?
+**Answer:** The middleware checks the HTTP `Authorization` request header for a format of `Bearer <token>`. It verifies the token using `jwt.verify(token, process.env.JWT_SECRET)`. If valid, it queries MongoDB for the user document (`User.findById(decoded.id).select('-password')`), attaches the authenticated user object to `req.user`, and calls `next()`. If invalid or expired, it returns `401 Unauthorized`.
+
+### Q21. What is an IDOR (Insecure Direct Object Reference) vulnerability and how did we prevent it?
+**Answer:** IDOR occurs when an application exposes a reference to an internal database object (like a transaction ID or user ID) and trusts client input to access that object without validating ownership. We prevented IDOR by never trusting a `userId` supplied in the request body or parameters. Instead, all database operations strictly filter by the authenticated `req.user._id` extracted from the cryptographically verified JWT token.
+
+### Q22. What happens if a user tries to edit or delete another user's transaction in SpendWise?
+**Answer:** In `transactionController.js`, queries use `{ _id: id, userId: req.user._id }`. If User B attempts to access or delete User A's transaction, MongoDB finds no matching document for User B's ID. The controller responds with `404 Not Found` ("Transaction not found with id: ..."), preventing unauthorized access and confirming complete data isolation.
+
+### Q23. What is AsyncStorage and why is it used in React Native?
+**Answer:** `AsyncStorage` is an unencrypted, asynchronous, persistent key-value storage system for React Native. We use it to persist the user's JWT authentication token (`@spendwise_token`) and user profile (`@spendwise_user`) on the mobile device so the user remains logged in across app restarts.
+
+### Q24. How does SpendWise handle session restoration when the app launches?
+**Answer:** On startup, `AuthContext` executes a `useEffect` hook that checks `AsyncStorage` for a stored token. While checking, `isLoading` is true, displaying a SpendWise splash screen. If a token is found, it calls `GET /api/v1/auth/me` to verify that the token is still active on the server. If valid, the user state is restored and `isAuthenticated` becomes `true`, causing `AuthNavigator` to switch from the Auth Stack to the Main App Stack.
+
+### Q25. Why did we wrap `<AuthProvider>` outside `<TransactionProvider>` in `App.js`?
+**Answer:** In React, a Context Provider can only consume values from providers that sit above it in the component tree. Since `TransactionContext` depends on `useAuth()` to check `isAuthenticated` and to trigger transaction loading only when a user logs in, `AuthProvider` must wrap `TransactionProvider`.
+
+### Q26. What is an Axios Request Interceptor and how is it used in SpendWise?
+**Answer:** An Axios request interceptor intercepts outgoing HTTP requests before they are sent over the network. In SpendWise, the request interceptor checks if an authentication token exists (in memory or AsyncStorage) and automatically injects the `Authorization: Bearer <token>` header into every outgoing request.
+
+### Q27. Why do we normalize MongoDB `_id` to `id` in the frontend?
+**Answer:** MongoDB uniquely identifies documents using an internal `_id` field (an ObjectId). However, standard React components (such as `FlatList` `keyExtractor`) and frontend code expect a standard `id` property. Normalizing `item._id` to `item.id` upon receiving API responses prevents key collisions and keeps UI code clean.
+
+### Q28. What is the difference between optimistic UI updates and pessimistic confirmation?
+**Answer:**
+- **Optimistic UI:** The app updates local state immediately before the network request finishes, assuming success. If the request fails, the app must roll back the change.
+- **Pessimistic Confirmation:** The app displays a loading indicator, waits for the backend server to confirm the database write with a `200` or `201` status code, and then updates the UI state. SpendWise uses pessimistic confirmation to ensure absolute financial data integrity.
+
+### Q29. How does `RefreshControl` implement pull-to-refresh in React Native?
+**Answer:** `RefreshControl` is passed as the `refreshControl` prop to a `FlatList` or `ScrollView`. It accepts `refreshing` (a boolean indicating whether data is currently being fetched) and `onRefresh` (an async callback that re-fetches data from the backend). When the user drags down on the list, `onRefresh` triggers `refreshTransactions()`.
+
+### Q30. Why do we use `10.0.2.2` instead of `localhost` when testing on an Android Emulator?
+**Answer:** In the Android Emulator architecture, `localhost` refers to the emulator's own internal virtual device loopback, not the host computer running the development server. The Android networking stack routes `10.0.2.2` specifically to the host development machine's loopback interface (`127.0.0.1`), allowing the emulator to communicate with the Node.js server.
+
+### Q31. What is the Mongoose `select('-password')` modifier and why is it essential?
+**Answer:** When querying user documents from MongoDB, appending `.select('-password')` explicitly excludes the hashed password field from the returned document. This prevents password hashes from accidentally leaking into API responses or client-side storage.
+
+### Q32. What is the purpose of the Mongoose `pre('save')` hook?
+**Answer:** A `pre('save')` middleware hook executes automatically before a Mongoose document is saved to the database. In our `User` model, it checks if the password field was modified (`this.isModified('password')`); if so, it hashes the plain-text password using `bcrypt` before writing to MongoDB.
+
+### Q33. How does SpendWise prevent duplicate user registrations?
+**Answer:**
+1. At the database level: the `email` field in the `User` schema has `unique: true` and `lowercase: true`.
+2. At the controller level: `authController.register` queries `User.findOne({ email })`. If a user already exists, it immediately returns a `400 Bad Request` with an informative error message ("A user with this email address already exists").
+
+### Q34. How are financial totals (balance, income, expenses) kept in sync with MongoDB?
+**Answer:** `TransactionContext` stores the active transaction list in React state. Whenever a user adds, edits, or deletes a transaction, the operation updates the backend database and updates the local state array. A `useMemo` hook immediately re-calculates `totalIncome`, `totalExpenses`, and `totalBalance = totalIncome - totalExpenses`, propagating the updated figures instantly to the `DashboardScreen`.
+
+### Q35. What is the purpose of the `serverSelectionTimeoutMS: 5000` option in Mongoose?
+**Answer:** By default, Mongoose may hang for up to 30 seconds trying to reach an unreachable MongoDB server. Setting `serverSelectionTimeoutMS: 5000` forces Mongoose to fail fast after 5 seconds, providing an immediate and actionable error message in the console rather than causing the application to hang indefinitely.
 
 ---
