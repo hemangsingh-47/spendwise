@@ -34,15 +34,19 @@ export default function TransactionDetailsScreen({ route, navigation }) {
   const handleDelete = () => {
     Alert.alert(
       'Delete Transaction',
-      `Are you sure you want to delete "${transaction.description || transaction.category}"? This action cannot be undone.`,
+      `Are you sure you want to delete "${transaction.description || transaction.category}"? This will permanently remove it from MongoDB.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            deleteTransaction(transaction.id);
-            navigation.goBack();
+          onPress: async () => {
+            try {
+              await deleteTransaction(transaction.id);
+              navigation.goBack();
+            } catch (err) {
+              Alert.alert('Deletion Failed', err.message || 'Could not delete transaction.');
+            }
           },
         },
       ]

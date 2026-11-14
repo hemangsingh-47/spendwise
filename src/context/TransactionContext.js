@@ -1,72 +1,148 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
-import { INITIAL_MOCK_TRANSACTIONS } from '../data/mockTransactions';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import transactionService from '../services/transactionService';
+import { useAuth } from './AuthContext';
 
 /**
- * SpendWise Transaction Context
- * Beginner-friendly React Context API for managing client-side transaction state across
- * the Dashboard, Transaction List, and Form Screens (Phases 4-5).
- * 
- * In Phase 8/10, this context will connect to the Express/MongoDB REST API.
+ * SpendWise Transaction Context (Phase 8 Integration)
+ * Directly connects the React Native frontend to the Express/MongoDB backend REST APIs.
+ * Automatically synchronizes whenever the authenticated user creates, edits, or deletes records.
  */
 const TransactionContext = createContext();
 
 export const TransactionProvider = ({ children }) => {
-  // Local state initialized with temporary mock transactions
-  const [transactions, setTransactions] = useState(INITIAL_MOCK_TRANSACTIONS);
+  const { isAuthenticated } = useAuth();
+  const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   /**
-   * Add a new transaction (Income or Expense)
-   * @param {object} newTx
+   * Normalize backend MongoDB document into uniform frontend transaction structure
    */
-  const addTransaction = (newTx) => {
-    const item = {
-      ...newTx,
-      id: newTx.id || `tx_${Date.now()}`,
-      amount: Number(newTx.amount),
-      date: newTx.date || new Date().toISOString().split('T')[0],
-    };
-    setTransactions((prev) => [item, ...prev]);
+  const normalizeTx = (doc) => ({
+    ...doc,
+    id: doc._id || doc.id,
+    date: doc.date ? new Date(doc.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    amount: Number(doc.amount),
+  });
+
+  /**
+   * Fetch all transactions from the backend REST API
+   */
+  const fetchTransactions = useCallback(async (isRefresh = false) => {
+    if (!isAuthenticated) {
+      setTransactions([]);
+      return;
+    }
+
+    try {
+      if (isRefresh) setIsRefreshing(true);
+      else setIsLoading(true);
+      setError(null);
+
+      const result = await transactionService.getTransactions({ limit: 100 });
+      if (result.success && Array.isArray(result.data)) {
+        setTransactions(result.data.map(normalizeTx));
+      }
+    } catch (err) {
+      console.warn('[TransactionContext] Fetch failed:', err.message);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [isAuthenticated]);
+
+  // Load transactions whenever authentication status changes to true
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchTransactions();
+    } else {
+      setTransactions([]);
+    }
+  }, [isAuthenticated, fetchTransactions]);
+
+  /**
+   * Add a new transaction (POST /api/v1/transactions)
+   */
+  const addTransaction = async (newTxData) => {
+    setIsLoading(true);
+    try {
+      setError(null);
+      const result = await transactionService.createTransaction({
+        type: newTxData.type,
+        amount: Number(newTxData.amount),
+        category: newTxData.category,
+        description: newTxData.description,
+        date: newTxData.date,
+        paymentMethod: newTxData.paymentMethod || 'UPI',
+      });
+
+      if (result.success && result.data) {
+        const normalized = normalizeTx(result.data);
+        setTransactions((prev) => [normalized, ...prev]);
+        return normalized;
+      }
+    } catch (err) {
+      console.error('[TransactionContext] Add transaction failed:', err.message);
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /**
-   * Edit an existing transaction
-   * @param {string} id
-   * @param {object} updatedFields
+   * Edit an existing transaction (PUT /api/v1/transactions/:id)
    */
-  const editTransaction = (id, updatedFields) => {
-    setTransactions((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              ...updatedFields,
-              amount: Number(updatedFields.amount ?? item.amount),
-            }
-          : item
-      )
-    );
+  const editTransaction = async (id, updatedFields) => {
+    setIsLoading(true);
+    try {
+      setError(null);
+      const result = await transactionService.updateTransaction(id, updatedFields);
+      if (result.success && result.data) {
+        const normalized = normalizeTx(result.data);
+        setTransactions((prev) =>
+          prev.map((item) => (item.id === id ? normalized : item))
+        );
+        return normalized;
+      }
+    } catch (err) {
+      console.error('[TransactionContext] Edit transaction failed:', err.message);
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /**
-   * Delete a transaction by ID
-   * @param {string} id
+   * Delete a transaction (DELETE /api/v1/transactions/:id)
    */
-  const deleteTransaction = (id) => {
-    setTransactions((prev) => prev.filter((item) => item.id !== id));
+  const deleteTransaction = async (id) => {
+    setIsLoading(true);
+    try {
+      setError(null);
+      await transactionService.deleteTransaction(id);
+      setTransactions((prev) => prev.filter((item) => item.id !== id));
+    } catch (err) {
+      console.error('[TransactionContext] Delete transaction failed:', err.message);
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /**
-   * Get single transaction by ID
-   * @param {string} id
+   * Get single transaction by ID from current local state
    */
   const getTransactionById = (id) => {
     return transactions.find((item) => item.id === id) || null;
   };
 
   /**
-   * Calculate summary metrics efficiently using useMemo
+   * Derived Financial Summary (useMemo)
    */
   const summary = useMemo(() => {
     let income = 0;
@@ -94,7 +170,9 @@ export const TransactionProvider = ({ children }) => {
   const value = {
     transactions,
     isLoading,
+    isRefreshing,
     error,
+    refreshTransactions: () => fetchTransactions(true),
     addTransaction,
     editTransaction,
     deleteTransaction,
@@ -114,9 +192,6 @@ export const TransactionProvider = ({ children }) => {
   );
 };
 
-/**
- * Custom Hook for accessing transaction state and methods
- */
 export const useTransactions = () => {
   const context = useContext(TransactionContext);
   if (!context) {

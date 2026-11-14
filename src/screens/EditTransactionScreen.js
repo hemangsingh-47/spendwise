@@ -48,6 +48,7 @@ export default function EditTransactionScreen({ navigation, route }) {
   const [date, setDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (existingTx) {
@@ -77,7 +78,7 @@ export default function EditTransactionScreen({ navigation, route }) {
 
   const categoryList = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const newErrors = {};
 
     const numAmount = parseFloat(amount);
@@ -105,26 +106,32 @@ export default function EditTransactionScreen({ navigation, route }) {
       return;
     }
 
-    // Save update in context
-    editTransaction(existingTx.id, {
-      type,
-      amount: numAmount,
-      category,
-      description: description.trim(),
-      date,
-      paymentMethod,
-    });
+    setIsSubmitting(true);
+    try {
+      await editTransaction(existingTx.id, {
+        type,
+        amount: numAmount,
+        category,
+        description: description.trim(),
+        date,
+        paymentMethod,
+      });
 
-    Alert.alert(
-      'Changes Saved',
-      'Transaction updated successfully.',
-      [
-        {
-          text: 'Done',
-          onPress: () => navigation.goBack(),
-        },
-      ]
-    );
+      Alert.alert(
+        'Changes Saved',
+        'Transaction updated successfully in MongoDB.',
+        [
+          {
+            text: 'Done',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+    } catch (err) {
+      Alert.alert('Update Failed', err.message || 'Could not update transaction.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -253,8 +260,9 @@ export default function EditTransactionScreen({ navigation, route }) {
 
         {/* Submit Update */}
         <Button
-          title="Save Changes"
+          title={isSubmitting ? 'Saving Changes...' : 'Save Changes'}
           variant="primary"
+          loading={isSubmitting}
           onPress={handleSave}
           style={styles.saveButton}
         />

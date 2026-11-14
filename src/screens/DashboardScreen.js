@@ -4,8 +4,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  RefreshControl,
+  ScrollView,
 } from 'react-native';
-import { ScreenContainer } from '../components/ScreenContainer';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '../components/Card';
 import {
   BalanceCard,
@@ -16,10 +18,11 @@ import {
 } from '../components/dashboard';
 import { colors, spacing, borderRadius, fontWeights, layout } from '../styles/theme';
 import { useTransactions } from '../context/TransactionContext';
-import { MOCK_USER } from '../data/mockTransactions';
+import { useAuth } from '../context/AuthContext';
 import { ROUTES } from '../constants/routes';
 
 export default function DashboardScreen({ navigation }) {
+  const { user } = useAuth();
   const {
     totalBalance,
     totalIncome,
@@ -27,6 +30,8 @@ export default function DashboardScreen({ navigation }) {
     incomeCount,
     expenseCount,
     recentTransactions,
+    isRefreshing,
+    refreshTransactions,
   } = useTransactions();
 
   // Current month formatting
@@ -35,132 +40,159 @@ export default function DashboardScreen({ navigation }) {
     year: 'numeric',
   }).format(new Date());
 
+  const displayName = user?.name || 'SpendWise User';
+  const initials = displayName
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
+
   return (
-    <ScreenContainer scrollable={true} contentContainerStyle={styles.container}>
-      {/* 1. Header Section */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Welcome back,</Text>
-          <Text style={styles.userName}>{MOCK_USER.name}</Text>
-          <View style={styles.demoTag}>
-            <Text style={styles.demoTagText}>Demo Student Profile</Text>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={refreshTransactions}
+            tintColor={colors.black}
+            colors={[colors.black]}
+          />
+        }
+      >
+        {/* 1. Header Section */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.greeting}>Welcome back,</Text>
+            <Text style={styles.userName}>{displayName}</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Active Session • {user?.currency || 'INR'}</Text>
+            </View>
           </View>
+
+          <TouchableOpacity
+            style={styles.avatarButton}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate(ROUTES.PROFILE_TAB)}
+          >
+            <Text style={styles.avatarText}>{initials}</Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.avatarButton}
-          activeOpacity={0.7}
-          onPress={() => navigation.navigate(ROUTES.PROFILE_TAB)}
-        >
-          <Text style={styles.avatarText}>HS</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* 2. Total Balance Card */}
-      <BalanceCard
-        balance={totalBalance}
-        currencySymbol="₹"
-        monthLabel={currentMonth}
-      />
-
-      {/* 3. Income & Expense Summary Cards */}
-      <View style={styles.summaryRow}>
-        <SummaryCard
-          type="income"
-          amount={totalIncome}
-          count={incomeCount}
+        {/* 2. Total Balance Card */}
+        <BalanceCard
+          balance={totalBalance}
           currencySymbol="₹"
-        />
-        <View style={styles.summarySpacer} />
-        <SummaryCard
-          type="expense"
-          amount={totalExpenses}
-          count={expenseCount}
-          currencySymbol="₹"
-        />
-      </View>
-
-      {/* 4. Quick Actions */}
-      <View style={styles.quickActionsSection}>
-        <SectionHeader title="Quick Actions" />
-        <View style={styles.quickActionsRow}>
-          <QuickActionButton
-            title="Add Expense"
-            iconSymbol="-"
-            variant="primary"
-            onPress={() =>
-              navigation.navigate(ROUTES.ADD_TRANSACTION, { defaultType: 'expense' })
-            }
-          />
-          <QuickActionButton
-            title="Add Income"
-            iconSymbol="+"
-            variant="secondary"
-            onPress={() =>
-              navigation.navigate(ROUTES.ADD_TRANSACTION, { defaultType: 'income' })
-            }
-          />
-          <QuickActionButton
-            title="All Records"
-            iconSymbol="≡"
-            variant="secondary"
-            onPress={() => navigation.navigate(ROUTES.TRANSACTIONS_TAB)}
-          />
-        </View>
-      </View>
-
-      {/* 5. Monthly Overview Card */}
-      <Card variant="white" style={styles.overviewCard}>
-        <SectionHeader title="Monthly Overview" />
-        <View style={styles.overviewRow}>
-          <Text style={styles.overviewLabel}>Total Inflow:</Text>
-          <Text style={styles.overviewValue}>+ ₹ {totalIncome.toLocaleString('en-IN')}</Text>
-        </View>
-        <View style={styles.overviewRow}>
-          <Text style={styles.overviewLabel}>Total Outflow:</Text>
-          <Text style={styles.overviewValue}>- ₹ {totalExpenses.toLocaleString('en-IN')}</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.overviewRow}>
-          <Text style={styles.netLabel}>Remaining Net:</Text>
-          <Text style={styles.netValue}>
-            {totalBalance >= 0 ? '+' : '-'} ₹ {Math.abs(totalBalance).toLocaleString('en-IN')}
-          </Text>
-        </View>
-      </Card>
-
-      {/* 6. Recent Transactions */}
-      <View style={styles.recentSection}>
-        <SectionHeader
-          title="Recent Transactions"
-          actionText="View All"
-          onActionPress={() => navigation.navigate(ROUTES.TRANSACTIONS_TAB)}
+          monthLabel={currentMonth}
         />
 
-        {recentTransactions.length === 0 ? (
-          <View style={styles.emptyRecent}>
-            <Text style={styles.emptyText}>No recent transactions found.</Text>
-            <Text style={styles.emptySubtext}>Use quick actions to record an entry.</Text>
-          </View>
-        ) : (
-          recentTransactions.map((tx) => (
-            <TransactionItem
-              key={tx.id}
-              transaction={tx}
-              currencySymbol="₹"
+        {/* 3. Income & Expense Summary Cards */}
+        <View style={styles.summaryRow}>
+          <SummaryCard
+            type="income"
+            amount={totalIncome}
+            count={incomeCount}
+            currencySymbol="₹"
+          />
+          <View style={styles.summarySpacer} />
+          <SummaryCard
+            type="expense"
+            amount={totalExpenses}
+            count={expenseCount}
+            currencySymbol="₹"
+          />
+        </View>
+
+        {/* 4. Quick Actions */}
+        <View style={styles.quickActionsSection}>
+          <SectionHeader title="Quick Actions" />
+          <View style={styles.quickActionsRow}>
+            <QuickActionButton
+              title="Add Expense"
+              iconSymbol="-"
+              variant="primary"
               onPress={() =>
-                navigation.navigate(ROUTES.TRANSACTION_DETAILS, { transactionId: tx.id })
+                navigation.navigate(ROUTES.ADD_TRANSACTION, { defaultType: 'expense' })
               }
             />
-          ))
-        )}
-      </View>
-    </ScreenContainer>
+            <QuickActionButton
+              title="Add Income"
+              iconSymbol="+"
+              variant="secondary"
+              onPress={() =>
+                navigation.navigate(ROUTES.ADD_TRANSACTION, { defaultType: 'income' })
+              }
+            />
+            <QuickActionButton
+              title="All Records"
+              iconSymbol="≡"
+              variant="secondary"
+              onPress={() => navigation.navigate(ROUTES.TRANSACTIONS_TAB)}
+            />
+          </View>
+        </View>
+
+        {/* 5. Monthly Overview Card */}
+        <Card variant="white" style={styles.overviewCard}>
+          <SectionHeader title="Monthly Overview" />
+          <View style={styles.overviewRow}>
+            <Text style={styles.overviewLabel}>Total Inflow:</Text>
+            <Text style={styles.overviewValue}>+ ₹ {totalIncome.toLocaleString('en-IN')}</Text>
+          </View>
+          <View style={styles.overviewRow}>
+            <Text style={styles.overviewLabel}>Total Outflow:</Text>
+            <Text style={styles.overviewValue}>- ₹ {totalExpenses.toLocaleString('en-IN')}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.overviewRow}>
+            <Text style={styles.netLabel}>Remaining Net:</Text>
+            <Text style={styles.netValue}>
+              {totalBalance >= 0 ? '+' : '-'} ₹ {Math.abs(totalBalance).toLocaleString('en-IN')}
+            </Text>
+          </View>
+        </Card>
+
+        {/* 6. Recent Transactions */}
+        <View style={styles.recentSection}>
+          <SectionHeader
+            title="Recent Transactions"
+            actionText="View All"
+            onActionPress={() => navigation.navigate(ROUTES.TRANSACTIONS_TAB)}
+          />
+
+          {recentTransactions.length === 0 ? (
+            <View style={styles.emptyRecent}>
+              <Text style={styles.emptyText}>No transactions recorded yet.</Text>
+              <Text style={styles.emptySubtext}>Use quick actions above to record an expense or income.</Text>
+            </View>
+          ) : (
+            recentTransactions.map((tx) => (
+              <TransactionItem
+                key={tx.id}
+                transaction={tx}
+                currencySymbol="₹"
+                onPress={() =>
+                  navigation.navigate(ROUTES.TRANSACTION_DETAILS, { transactionId: tx.id })
+                }
+              />
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
+    paddingHorizontal: layout.screenPaddingHorizontal,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xxxl,
   },
   header: {
@@ -185,7 +217,7 @@ const styles = StyleSheet.create({
     color: colors.black,
     letterSpacing: -0.4,
   },
-  demoTag: {
+  badge: {
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -195,8 +227,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: 4,
   },
-  demoTagText: {
-    fontSize: 10,
+  badgeText: {
+    fontSize: 11,
     fontWeight: fontWeights.medium,
     color: colors.darkGrey,
   },

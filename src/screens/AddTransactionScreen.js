@@ -48,6 +48,7 @@ export default function AddTransactionScreen({ navigation, route }) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const categoryList = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
@@ -56,7 +57,7 @@ export default function AddTransactionScreen({ navigation, route }) {
     setCategory(newType === 'income' ? 'Salary' : 'Food');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const newErrors = {};
 
     // 1. Amount validation
@@ -88,26 +89,32 @@ export default function AddTransactionScreen({ navigation, route }) {
       return;
     }
 
-    // Add to context state
-    addTransaction({
-      type,
-      amount: numAmount,
-      category,
-      description: description.trim(),
-      date,
-      paymentMethod,
-    });
+    setIsSubmitting(true);
+    try {
+      await addTransaction({
+        type,
+        amount: numAmount,
+        category,
+        description: description.trim(),
+        date,
+        paymentMethod,
+      });
 
-    Alert.alert(
-      'Transaction Added',
-      `${type === 'income' ? 'Income' : 'Expense'} of ₹${numAmount} successfully recorded!`,
-      [
-        {
-          text: 'Done',
-          onPress: () => navigation.goBack(),
-        },
-      ]
-    );
+      Alert.alert(
+        'Transaction Recorded',
+        `${type === 'income' ? 'Income' : 'Expense'} of ₹${numAmount} successfully saved to MongoDB!`,
+        [
+          {
+            text: 'Done',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+    } catch (err) {
+      Alert.alert('Save Failed', err.message || 'Could not save transaction to server.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -266,8 +273,9 @@ export default function AddTransactionScreen({ navigation, route }) {
 
         {/* Action Buttons */}
         <Button
-          title={`Save ${type === 'income' ? 'Income' : 'Expense'}`}
+          title={isSubmitting ? 'Saving to Database...' : `Save ${type === 'income' ? 'Income' : 'Expense'}`}
           variant="primary"
+          loading={isSubmitting}
           onPress={handleSave}
           style={styles.saveButton}
         />

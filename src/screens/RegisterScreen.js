@@ -17,18 +17,23 @@ import {
   validateConfirmPassword,
   validateTerms,
 } from '../utils/validation';
+import { useAuth } from '../context/AuthContext';
 import { ROUTES } from '../constants/routes';
 
 export default function RegisterScreen({ navigation }) {
+  const { register } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [errors, setErrors] = useState({});
-  const [demoMessage, setDemoMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverError, setServerError] = useState('');
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
+    setServerError('');
+
     // 1. Run all client-side validation rules
     const nameError = validateFullName(fullName);
     const emailError = validateEmail(email);
@@ -45,25 +50,22 @@ export default function RegisterScreen({ navigation }) {
 
     setErrors(newErrors);
 
-    // 2. Stop if any validation check failed
     if (Object.keys(newErrors).length > 0) {
-      setDemoMessage('');
       return;
     }
 
-    // 3. Frontend-only demo feedback (Strict Phase 3 Scope)
-    const successMsg = `Demo Account Created Successfully!\nName: ${fullName.trim()}\nEmail: ${email.trim()}`;
-    setDemoMessage(successMsg);
-    Alert.alert(
-      'SpendWise Demo Registration',
-      successMsg + '\n\nYou can now sign in.',
-      [
-        {
-          text: 'Go to Sign In',
-          onPress: () => navigation.navigate(ROUTES.LOGIN),
-        },
-      ]
-    );
+    // 2. Submit to backend API
+    setIsSubmitting(true);
+    try {
+      await register(fullName.trim(), email.trim(), password);
+      // Navigation is handled automatically by AuthContext in RootNavigator
+    } catch (err) {
+      const msg = err.message || 'Registration failed. Please try again.';
+      setServerError(msg);
+      Alert.alert('Registration Failed', msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -81,10 +83,10 @@ export default function RegisterScreen({ navigation }) {
           Start tracking your expenses and manage your college budget easily.
         </SecondaryBody>
 
-        {/* Demo Message Banner */}
-        {demoMessage ? (
-          <View style={styles.demoBanner}>
-            <Text style={styles.demoBannerText}>{demoMessage}</Text>
+        {/* Server Error Banner */}
+        {serverError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{serverError}</Text>
           </View>
         ) : null}
 
@@ -96,6 +98,7 @@ export default function RegisterScreen({ navigation }) {
           onChangeText={(text) => {
             setFullName(text);
             if (errors.fullName) setErrors((prev) => ({ ...prev, fullName: null }));
+            if (serverError) setServerError('');
           }}
           autoCapitalize="words"
           error={errors.fullName}
@@ -109,6 +112,7 @@ export default function RegisterScreen({ navigation }) {
           onChangeText={(text) => {
             setEmail(text);
             if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
+            if (serverError) setServerError('');
           }}
           keyboardType="email-address"
           autoCapitalize="none"
@@ -123,6 +127,7 @@ export default function RegisterScreen({ navigation }) {
           onChangeText={(text) => {
             setPassword(text);
             if (errors.password) setErrors((prev) => ({ ...prev, password: null }));
+            if (serverError) setServerError('');
           }}
           secureTextEntry={true}
           showTogglePassword={true}
@@ -139,6 +144,7 @@ export default function RegisterScreen({ navigation }) {
             if (errors.confirmPassword) {
               setErrors((prev) => ({ ...prev, confirmPassword: null }));
             }
+            if (serverError) setServerError('');
           }}
           secureTextEntry={true}
           showTogglePassword={true}
@@ -178,8 +184,9 @@ export default function RegisterScreen({ navigation }) {
 
         {/* Create Account Button */}
         <Button
-          title="Create Account"
+          title={isSubmitting ? 'Creating Account...' : 'Create Account'}
           variant="primary"
+          loading={isSubmitting}
           onPress={handleRegister}
           style={styles.registerButton}
         />
@@ -225,16 +232,16 @@ const styles = StyleSheet.create({
   subheading: {
     marginBottom: spacing.xl,
   },
-  demoBanner: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
+  errorBanner: {
+    backgroundColor: colors.errorBackground,
+    borderColor: colors.error,
     borderWidth: 1,
     borderRadius: borderRadius.small,
     padding: spacing.md,
     marginBottom: spacing.lg,
   },
-  demoBannerText: {
-    color: colors.dark,
+  errorBannerText: {
+    color: colors.error,
     fontSize: 13,
     fontWeight: fontWeights.medium,
     textAlign: 'center',

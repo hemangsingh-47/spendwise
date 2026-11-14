@@ -11,16 +11,21 @@ import {
 } from '../components';
 import { colors, spacing, borderRadius, fontWeights } from '../styles/theme';
 import { validateEmail, validatePassword } from '../utils/validation';
+import { useAuth } from '../context/AuthContext';
 import { ROUTES } from '../constants/routes';
 
 export default function LoginScreen({ navigation }) {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
-  const [demoMessage, setDemoMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverError, setServerError] = useState('');
 
-  const handleLogin = () => {
-    // 1. Run client-side validation
+  const handleLogin = async () => {
+    setServerError('');
+
+    // 1. Client-side input validation
     const emailError = validateEmail(email);
     const passwordError = validatePassword(password, 6);
 
@@ -30,25 +35,22 @@ export default function LoginScreen({ navigation }) {
 
     setErrors(newErrors);
 
-    // 2. If errors exist, stop here
     if (Object.keys(newErrors).length > 0) {
-      setDemoMessage('');
       return;
     }
 
-    // 3. Frontend-only demo feedback (Navigate to Main Dashboard)
-    const successMsg = `Demo Login Successful!\nEmail: ${email.trim()}`;
-    setDemoMessage(successMsg);
-    Alert.alert(
-      'SpendWise Demo',
-      `${successMsg}\n\nProceed to main dashboard?`,
-      [
-        {
-          text: 'Open Dashboard',
-          onPress: () => navigation.navigate(ROUTES.MAIN_APP),
-        },
-      ]
-    );
+    // 2. Submit credentials to Express backend
+    setIsSubmitting(true);
+    try {
+      await login(email.trim(), password);
+      // Navigation is handled reactively by AuthContext in RootNavigator
+    } catch (err) {
+      const msg = err.message || 'Login failed. Please check your credentials.';
+      setServerError(msg);
+      Alert.alert('Sign In Failed', msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -69,14 +71,14 @@ export default function LoginScreen({ navigation }) {
           Sign in to track your expenses and monitor your personal budget.
         </SecondaryBody>
 
-        {/* Demo Message Banner */}
-        {demoMessage ? (
-          <View style={styles.demoBanner}>
-            <Text style={styles.demoBannerText}>{demoMessage}</Text>
+        {/* Server Error Banner */}
+        {serverError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{serverError}</Text>
           </View>
         ) : null}
 
-        {/* Form Inputs */}
+        {/* Email Input */}
         <Input
           label="Email Address"
           placeholder="student@college.edu"
@@ -84,12 +86,14 @@ export default function LoginScreen({ navigation }) {
           onChangeText={(text) => {
             setEmail(text);
             if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
+            if (serverError) setServerError('');
           }}
           keyboardType="email-address"
           autoCapitalize="none"
           error={errors.email}
         />
 
+        {/* Password Input */}
         <Input
           label="Password"
           placeholder="Enter your password"
@@ -97,6 +101,7 @@ export default function LoginScreen({ navigation }) {
           onChangeText={(text) => {
             setPassword(text);
             if (errors.password) setErrors((prev) => ({ ...prev, password: null }));
+            if (serverError) setServerError('');
           }}
           secureTextEntry={true}
           showTogglePassword={true}
@@ -114,18 +119,11 @@ export default function LoginScreen({ navigation }) {
 
         {/* Submit Login Button */}
         <Button
-          title="Sign In"
+          title={isSubmitting ? 'Signing In...' : 'Sign In'}
           variant="primary"
+          loading={isSubmitting}
           onPress={handleLogin}
           style={styles.loginButton}
-        />
-
-        {/* Instant Demo Preview Button for Viva/Evaluation */}
-        <Button
-          title="Explore Dashboard (Demo Access) →"
-          variant="secondary"
-          onPress={() => navigation.navigate(ROUTES.MAIN_APP)}
-          style={styles.demoAccessButton}
         />
 
         {/* Footer Navigation Link to Register */}
@@ -140,14 +138,14 @@ export default function LoginScreen({ navigation }) {
         </View>
       </Card>
 
-      {/* Quick Navigation to Design System Preview (For Review & Viva) */}
+      {/* Shortcut to Design System Preview */}
       <TouchableOpacity
         style={styles.previewLink}
         onPress={() => navigation.navigate(ROUTES.DESIGN_SYSTEM_PREVIEW)}
         activeOpacity={0.7}
       >
         <Caption style={styles.previewLinkText}>
-          View Phase 2 Design System Preview →
+          View Design System Preview →
         </Caption>
       </TouchableOpacity>
     </ScreenContainer>
@@ -194,16 +192,16 @@ const styles = StyleSheet.create({
   subheading: {
     marginBottom: spacing.xl,
   },
-  demoBanner: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
+  errorBanner: {
+    backgroundColor: colors.errorBackground,
+    borderColor: colors.error,
     borderWidth: 1,
     borderRadius: borderRadius.small,
     padding: spacing.md,
     marginBottom: spacing.lg,
   },
-  demoBannerText: {
-    color: colors.dark,
+  errorBannerText: {
+    color: colors.error,
     fontSize: 13,
     fontWeight: fontWeights.medium,
     textAlign: 'center',
@@ -219,9 +217,6 @@ const styles = StyleSheet.create({
     color: colors.darkGrey,
   },
   loginButton: {
-    marginBottom: spacing.sm,
-  },
-  demoAccessButton: {
     marginBottom: spacing.lg,
   },
   footerContainer: {

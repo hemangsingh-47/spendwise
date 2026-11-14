@@ -30,7 +30,7 @@ const CATEGORIES = [
 ];
 
 export default function TransactionsScreen({ navigation }) {
-  const { transactions, isLoading, error } = useTransactions();
+  const { transactions, isLoading, isRefreshing, refreshTransactions, error } = useTransactions();
 
   // Search & Filter State (Phase 5)
   const [searchQuery, setSearchQuery] = useState('');
@@ -171,6 +171,8 @@ export default function TransactionsScreen({ navigation }) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshing={isRefreshing}
+          onRefresh={refreshTransactions}
           renderItem={({ item }) => (
             <TransactionItem
               transaction={item}
