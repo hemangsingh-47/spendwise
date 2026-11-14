@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node test/api.test.js"
+    "test": "node test/api.test.js && node test/auth.test.js",
+    "test:auth": "node test/auth.test.js",
+    "test:api": "node test/api.test.js"
   },
   "keywords": [
     "react-native",
@@ -18,9 +20,11 @@
   "author": "Hemang Singh",
   "license": "MIT",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.9.5"
   },
   "devDependencies": {

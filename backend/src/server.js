@@ -8,15 +8,17 @@ const app = require('./app');
 const connectDB = require('./config/db');
 
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Connect to MongoDB
 connectDB();
 
 // Start HTTP Server
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`[SpendWise-Backend] Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-  console.log(`[SpendWise-Backend] Health Check available at: http://localhost:${PORT}/api/v1/health`);
-  console.log(`[SpendWise-Backend] Transactions API: http://localhost:${PORT}/api/v1/transactions`);
+  console.log(`[SpendWise-Backend] Local:   http://localhost:${PORT}/api/v1/health`);
+  console.log(`[SpendWise-Backend] Network: http://10.165.196.121:${PORT}/api/v1/health`);
+  console.log(`[SpendWise-Backend] Mobile App API Base: http://10.165.196.121:${PORT}/api/v1`);
 });
 
 // Handle unhandled promise rejections gracefully

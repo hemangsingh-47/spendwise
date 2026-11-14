@@ -2,31 +2,9 @@ const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 
 /**
- * Temporary default development User ObjectId for Phase 6 API testing.
- * 
- * IMPORTANT ARCHITECTURAL RESTRICTION:
- * Real JWT authentication middleware has not been integrated yet (scheduled for Phase 7).
- * In Phase 7, 'userId' will be extracted securely from the verified JWT token:
- *   const userId = req.user.id;
- * Do NOT use client-provided userId in production.
- */
-const DEFAULT_DEV_USER_ID = new mongoose.Types.ObjectId('673456789abcdef012345678');
-
-const getEffectiveUserId = (req) => {
-  // When JWT authentication is added in Phase 7, req.user will be populated
-  if (req.user && req.user._id) {
-    return req.user._id;
-  }
-  if (req.body.userId && mongoose.Types.ObjectId.isValid(req.body.userId)) {
-    return new mongoose.Types.ObjectId(req.body.userId);
-  }
-  return DEFAULT_DEV_USER_ID;
-};
-
-/**
  * @desc    Create a new transaction
  * @route   POST /api/v1/transactions
- * @access  Public (Phase 6 dev) -> Protected (Phase 7 JWT)
+ * @access  Private (JWT Protected)
  */
 const createTransaction = async (req, res, next) => {
   try {
@@ -62,9 +40,10 @@ const createTransaction = async (req, res, next) => {
       });
     }
 
-    const userId = getEffectiveUserId(req);
+    // Authenticated user ID strictly from verified JWT
+    const userId = req.user._id;
 
-    // 2. Create in MongoDB
+    // 2. Create document in MongoDB
     const transaction = await Transaction.create({
       userId,
       type: type.toLowerCase(),
@@ -86,16 +65,17 @@ const createTransaction = async (req, res, next) => {
 };
 
 /**
- * @desc    Get all transactions with filtering and pagination
+ * @desc    Get all transactions for the authenticated user with filtering & pagination
  * @route   GET /api/v1/transactions
- * @access  Public (Phase 6 dev) -> Protected (Phase 7 JWT)
+ * @access  Private (JWT Protected)
  */
 const getTransactions = async (req, res, next) => {
   try {
-    const userId = getEffectiveUserId(req);
-    const { type, category, page = 1, limit = 20 } = req.query;
+    // Authenticated user ID strictly from verified JWT
+    const userId = req.user._id;
+    const { type, category, search, page = 1, limit = 20 } = req.query;
 
-    // Build query filter
+    // Build user-isolated query filter
     const query = { userId };
 
     if (type && ['income', 'expense'].includes(type.toLowerCase())) {
@@ -106,18 +86,25 @@ const getTransactions = async (req, res, next) => {
       query.category = category;
     }
 
+    if (search && search.trim()) {
+      query.$or = [
+        { description: { $regex: search.trim(), $options: 'i' } },
+        { category: { $regex: search.trim(), $options: 'i' } },
+      ];
+    }
+
     // Pagination
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
     const skip = (pageNum - 1) * limitNum;
 
-    // Execute query with sorting
+    // Execute queries in parallel
     const [transactions, totalCount] = await Promise.all([
       Transaction.find(query).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limitNum),
       Transaction.countDocuments(query),
     ]);
 
-    // Compute summary metrics across user's records
+    // Compute user-specific financial summary across all their transactions
     const allUserTransactions = await Transaction.find({ userId }).select('type amount');
     let totalIncome = 0;
     let totalExpenses = 0;
@@ -145,9 +132,9 @@ const getTransactions = async (req, res, next) => {
 };
 
 /**
- * @desc    Get a single transaction by ID
+ * @desc    Get a single transaction by ID (belonging strictly to authenticated user)
  * @route   GET /api/v1/transactions/:id
- * @access  Public (Phase 6 dev) -> Protected (Phase 7 JWT)
+ * @access  Private (JWT Protected)
  */
 const getTransactionById = async (req, res, next) => {
   try {
@@ -160,7 +147,11 @@ const getTransactionById = async (req, res, next) => {
       });
     }
 
-    const transaction = await Transaction.findById(id);
+    // Strict ownership verification: query by ID AND userId
+    const transaction = await Transaction.findOne({
+      _id: id,
+      userId: req.user._id,
+    });
 
     if (!transaction) {
       return res.status(404).json({
@@ -179,9 +170,9 @@ const getTransactionById = async (req, res, next) => {
 };
 
 /**
- * @desc    Update an existing transaction
+ * @desc    Update an existing transaction (belonging strictly to authenticated user)
  * @route   PUT /api/v1/transactions/:id
- * @access  Public (Phase 6 dev) -> Protected (Phase 7 JWT)
+ * @access  Private (JWT Protected)
  */
 const updateTransaction = async (req, res, next) => {
   try {
@@ -214,8 +205,12 @@ const updateTransaction = async (req, res, next) => {
       req.body.amount = numAmount;
     }
 
-    const transaction = await Transaction.findByIdAndUpdate(
-      id,
+    // Prevent overriding ownership
+    delete req.body.userId;
+
+    // Strict ownership verification: find and update only if belongs to req.user._id
+    const transaction = await Transaction.findOneAndUpdate(
+      { _id: id, userId: req.user._id },
       { $set: req.body },
       { new: true, runValidators: true }
     );
@@ -238,9 +233,9 @@ const updateTransaction = async (req, res, next) => {
 };
 
 /**
- * @desc    Delete a transaction
+ * @desc    Delete a transaction (belonging strictly to authenticated user)
  * @route   DELETE /api/v1/transactions/:id
- * @access  Public (Phase 6 dev) -> Protected (Phase 7 JWT)
+ * @access  Private (JWT Protected)
  */
 const deleteTransaction = async (req, res, next) => {
   try {
@@ -253,7 +248,11 @@ const deleteTransaction = async (req, res, next) => {
       });
     }
 
-    const transaction = await Transaction.findByIdAndDelete(id);
+    // Strict ownership verification: find and delete only if belongs to req.user._id
+    const transaction = await Transaction.findOneAndDelete({
+      _id: id,
+      userId: req.user._id,
+    });
 
     if (!transaction) {
       return res.status(404).json({

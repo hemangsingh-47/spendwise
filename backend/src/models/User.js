@@ -1,12 +1,9 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 /**
  * User Schema & Model
- * Defines account credentials and user profile for SpendWise.
- * 
- * NOTE (Phase 6): Password hashing and JWT authentication tokens will be
- * introduced in Phase 7. The password field is defined now to establish
- * the database schema blueprint.
+ * Defines account credentials, profile settings, and secure password hashing for SpendWise.
  */
 const userSchema = new mongoose.Schema(
   {
@@ -32,7 +29,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters long'],
-      // Password will be hashed with bcrypt in Phase 7
     },
     currency: {
       type: String,
@@ -42,8 +38,43 @@ const userSchema = new mongoose.Schema(
     },
   },
   {
-    timestamps: true, // Automatically manages createdAt and updatedAt
+    timestamps: true,
   }
 );
+
+/**
+ * Mongoose Pre-save Hook: Hashes password with bcrypt before saving to DB
+ */
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+/**
+ * Compares an incoming plain-text password with the stored bcrypt hash
+ * @param {string} enteredPassword
+ * @returns {Promise<boolean>}
+ */
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
+
+/**
+ * Returns a sanitized user object without the password hash
+ */
+userSchema.methods.toSafeObject = function () {
+  return {
+    _id: this._id,
+    name: this.name,
+    email: this.email,
+    currency: this.currency,
+    createdAt: this.createdAt,
+    updatedAt: this.updatedAt,
+  };
+};
 
 module.exports = mongoose.model('User', userSchema);

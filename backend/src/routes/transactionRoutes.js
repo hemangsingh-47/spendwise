@@ -7,11 +7,15 @@ const {
   updateTransaction,
   deleteTransaction,
 } = require('../controllers/transactionController');
+const { protect } = require('../middleware/authMiddleware');
 
 /**
  * Transaction Routes
  * Base URL: /api/v1/transactions
+ * All transaction routes are strictly protected by JWT authMiddleware.
  */
+router.use(protect);
+
 router.route('/')
   .post(createTransaction)
   .get(getTransactions);

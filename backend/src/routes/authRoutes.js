@@ -1,18 +1,26 @@
 const express = require('express');
 const router = express.Router();
+const {
+  register,
+  login,
+  getMe,
+  updateProfile,
+  changePassword,
+} = require('../controllers/authController');
+const { protect } = require('../middleware/authMiddleware');
 
 /**
- * Authentication Routes (Placeholder for Phase 7)
- * 
- * NOTE: User registration, login with bcrypt password hashing,
- * and JWT token issuance will be implemented in Phase 7.
+ * Authentication Routes
+ * Base URL: /api/v1/auth
  */
-router.all('*', (req, res) => {
-  res.status(501).json({
-    success: false,
-    message: 'Authentication APIs are scheduled for implementation in Phase 7.',
-    milestone: 'Phase 7: Backend Authentication & Security',
-  });
-});
+
+// Public routes
+router.post('/register', register);
+router.post('/login', login);
+
+// Protected routes (Require verified Bearer JWT)
+router.get('/me', protect, getMe);
+router.put('/profile', protect, updateProfile);
+router.post('/change-password', protect, changePassword);
 
 module.exports = router;
