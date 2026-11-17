@@ -268,6 +268,39 @@ sequenceDiagram
     end
 ```
 
+### Flow E: End-to-End Multi-User Security & Authorization Architecture
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as React Native App (SpendWise)
+    participant Axios as Axios API Client (with Bearer Interceptor)
+    participant Router as Express.js Router (/api/v1/*)
+    participant AuthMid as authMiddleware (verifyToken)
+    participant Ctrl as Resource Controller (tx / budget / analytics)
+    participant Model as Mongoose Model (User / Tx / Budget)
+    participant DB as MongoDB Database
+
+    Client->>Axios: api.get('/transactions')
+    Axios->>Axios: Attach Header 'Authorization: Bearer <JWT_TOKEN>'
+    Axios->>Router: HTTP GET /api/v1/transactions
+    Router->>AuthMid: protect(req, res, next)
+    AuthMid->>AuthMid: jwt.verify(token, JWT_SECRET)
+    alt Token Invalid or Expired
+        AuthMid-->>Client: 401 Unauthorized ("Token invalid or expired")
+    else Token Valid
+        AuthMid->>Model: User.findById(decoded.id)
+        Model-->>AuthMid: Authenticated User Object
+        AuthMid->>Router: req.user = user; next()
+        Router->>Ctrl: getTransactions(req, res)
+        Ctrl->>Model: Transaction.find({ userId: req.user._id })
+        Note over Ctrl,Model: Strict Multi-User Isolation: Scoped strictly by req.user._id
+        Model->>DB: BSON Query with indexed { userId }
+        DB-->>Model: User's Private Records Only
+        Model-->>Ctrl: Array of Transactions
+        Ctrl-->>Client: 200 OK + JSON Data Payload
+    end
+```
+
 ---
 
 ## 8. Scope Boundaries Summary
@@ -278,5 +311,6 @@ sequenceDiagram
 - **Phase 7:** Backend Authentication & Security: bcrypt password hashing, JWT token generation, `authMiddleware`, `authRoutes`, user isolation (preventing cross-user access), and 14/14 automated tests.
 - **Phase 8:** Mobile API & Context Integration: Axios client with Bearer token interceptor, AsyncStorage persistent session restore, `AuthContext`, `TransactionContext` live MongoDB sync, pull-to-refresh on FlatLists, and full CRUD screen wiring.
 - **Phase 9:** Advanced Budget Management: MongoDB budget CRUD endpoints, real-time monthly expense matching, 80% & 100% status thresholds, `BudgetsScreen` with overview card and category progress bars, and 15/15 automated tests.
-- **Phase 10:** Analytics & Native Features: MongoDB aggregation analytics (`/summary`, `/monthly`, `/categories`), 6-month cashflow trend bar chart, category donut chart, receipt photo capture and upload with Cloudinary/local fallback, local budget threshold notifications with duplicate prevention, and 8/8 automated tests.
-- **Phases 11–12 (Future):** Production polish, final packaging, and APK deployment (Strictly Not Started).
+- **Phase 10:** Analytics & Native Features: MongoDB aggregation analytics (`/summary`, `/monthly`, `/categories`), 6-month cashflow trend bar chart, category segmented distribution chart, receipt photo capture and upload with Cloudinary/local fallback, local budget threshold notifications with duplicate prevention, and 8/8 automated tests.
+- **Phase 11 (Completed):** Profile Management & Settings, Change Password, Dynamic Currency Selection (`INR`, `USD`, `EUR`, `GBP`), Multi-User Security & Isolation Testing (19/19 tests), Backend Health Check & Production Readiness (`render.yaml`), Frontend App Configuration (`app.json`, `eas.json`), and Complete Documentation.
+- **Phase 12 (Future):** Final Production APK Generation, Google Drive Distribution, and Final College Submission (Strictly Not Started - Awaiting Explicit Approval).

@@ -16,6 +16,8 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { colors, spacing, borderRadius, layout, fontWeights } from '../styles/theme';
 import { useTransactions } from '../context/TransactionContext';
+import { useAuth } from '../context/AuthContext';
+import { getCurrencySymbol } from '../utils/currency';
 import budgetService from '../services/budgetService';
 import notificationService from '../services/notificationService';
 
@@ -41,6 +43,8 @@ const INCOME_CATEGORIES = [
 const PAYMENT_METHODS = ['UPI', 'Cash', 'Debit Card', 'Credit Card', 'Net Banking'];
 
 export default function AddTransactionScreen({ navigation, route }) {
+  const { user } = useAuth();
+  const currencySymbol = getCurrencySymbol(user?.currency);
   const { addTransaction, uploadReceipt } = useTransactions();
   const defaultType = route.params?.defaultType || 'expense';
 
@@ -206,7 +210,7 @@ export default function AddTransactionScreen({ navigation, route }) {
 
       Alert.alert(
         'Transaction Recorded',
-        `${type === 'income' ? 'Income' : 'Expense'} of ₹${numAmount.toLocaleString()} successfully saved to MongoDB!`,
+        `${type === 'income' ? 'Income' : 'Expense'} of ${currencySymbol}${numAmount.toLocaleString()} successfully saved to MongoDB!`,
         [
           {
             text: 'Done',
@@ -216,10 +220,6 @@ export default function AddTransactionScreen({ navigation, route }) {
       );
     } catch (err) {
       Alert.alert('Save Failed', err.message || 'Could not save transaction to server.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
     } finally {
       setIsSubmitting(false);
     }
@@ -283,7 +283,7 @@ export default function AddTransactionScreen({ navigation, route }) {
 
         {/* Amount Input */}
         <Input
-          label="Amount (₹)"
+          label={`Amount (${currencySymbol})`}
           placeholder="e.g. 450"
           value={amount}
           onChangeText={(val) => {

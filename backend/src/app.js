@@ -1,6 +1,7 @@
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
 const { notFoundHandler, errorHandler } = require('./middleware/errorMiddleware');
 
 // Route Handlers
@@ -25,13 +26,18 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 /**
  * Health Check Endpoint
  * GET /api/v1/health
+ * Returns production health status without leaking configuration or credentials
  */
 app.get('/api/v1/health', (req, res) => {
+  const dbState = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.status(200).json({
     success: true,
+    status: 'OK',
     message: 'SpendWise API is running smoothly',
     version: '1.0.0',
+    database: dbState,
     environment: process.env.NODE_ENV || 'development',
+    uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
   });
 });

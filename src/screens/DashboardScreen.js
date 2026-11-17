@@ -19,10 +19,14 @@ import {
 import { colors, spacing, borderRadius, fontWeights, layout } from '../styles/theme';
 import { useTransactions } from '../context/TransactionContext';
 import { useAuth } from '../context/AuthContext';
+import { useDrawer } from '../context/DrawerContext';
 import { ROUTES } from '../constants/routes';
+import { Ionicons } from '@expo/vector-icons';
 import budgetService from '../services/budgetService';
+import { getCurrencySymbol } from '../utils/currency';
 
 export default function DashboardScreen({ navigation }) {
+  const { openDrawer } = useDrawer();
   const { user } = useAuth();
   const {
     totalBalance,
@@ -34,6 +38,7 @@ export default function DashboardScreen({ navigation }) {
     isRefreshing,
     refreshTransactions,
   } = useTransactions();
+  const currencySymbol = getCurrencySymbol(user?.currency);
 
   // Current month formatting
   const currentMonth = new Intl.DateTimeFormat('en-IN', {
@@ -85,18 +90,30 @@ export default function DashboardScreen({ navigation }) {
       >
         {/* 1. Header Section */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.greeting}>Welcome back,</Text>
-            <Text style={styles.userName}>{displayName}</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Active Session • {user?.currency || 'INR'}</Text>
+          <View style={styles.headerTitleRow}>
+            <TouchableOpacity
+              style={styles.menuButton}
+              onPress={openDrawer}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Open Navigation Menu"
+            >
+              <Ionicons name="menu-outline" size={26} color={colors.black} />
+            </TouchableOpacity>
+
+            <View style={styles.headerLeft}>
+              <Text style={styles.greeting}>Welcome back,</Text>
+              <Text style={styles.userName}>{displayName}</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>Active Session • {user?.currency || 'INR'}</Text>
+              </View>
             </View>
           </View>
 
           <TouchableOpacity
             style={styles.avatarButton}
             activeOpacity={0.7}
-            onPress={() => navigation.navigate(ROUTES.PROFILE_TAB)}
+            onPress={openDrawer}
           >
             <Text style={styles.avatarText}>{initials}</Text>
           </TouchableOpacity>
@@ -105,7 +122,7 @@ export default function DashboardScreen({ navigation }) {
         {/* 2. Total Balance Card */}
         <BalanceCard
           balance={totalBalance}
-          currencySymbol="₹"
+          currencySymbol={currencySymbol}
           monthLabel={currentMonth}
         />
 
@@ -115,14 +132,14 @@ export default function DashboardScreen({ navigation }) {
             type="income"
             amount={totalIncome}
             count={incomeCount}
-            currencySymbol="₹"
+            currencySymbol={currencySymbol}
           />
           <View style={styles.summarySpacer} />
           <SummaryCard
             type="expense"
             amount={totalExpenses}
             count={expenseCount}
-            currencySymbol="₹"
+            currencySymbol={currencySymbol}
           />
         </View>
 
@@ -186,10 +203,10 @@ export default function DashboardScreen({ navigation }) {
 
               <View style={styles.budgetNumbersRow}>
                 <Text style={styles.budgetSubText}>
-                  Spent: ₹ {budgetSummary.totalSpent.toLocaleString('en-IN')}
+                  Spent: {currencySymbol} {budgetSummary.totalSpent.toLocaleString('en-IN')}
                 </Text>
                 <Text style={styles.budgetSubText}>
-                  Target: ₹ {budgetSummary.totalBudget.toLocaleString('en-IN')}
+                  Target: {currencySymbol} {budgetSummary.totalBudget.toLocaleString('en-IN')}
                 </Text>
               </View>
 
@@ -199,17 +216,17 @@ export default function DashboardScreen({ navigation }) {
 
           <View style={styles.overviewRow}>
             <Text style={styles.overviewLabel}>Total Inflow:</Text>
-            <Text style={styles.overviewValue}>+ ₹ {totalIncome.toLocaleString('en-IN')}</Text>
+            <Text style={styles.overviewValue}>+ {currencySymbol} {totalIncome.toLocaleString('en-IN')}</Text>
           </View>
           <View style={styles.overviewRow}>
             <Text style={styles.overviewLabel}>Total Outflow:</Text>
-            <Text style={styles.overviewValue}>- ₹ {totalExpenses.toLocaleString('en-IN')}</Text>
+            <Text style={styles.overviewValue}>- {currencySymbol} {totalExpenses.toLocaleString('en-IN')}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.overviewRow}>
             <Text style={styles.netLabel}>Remaining Net:</Text>
             <Text style={styles.netValue}>
-              {totalBalance >= 0 ? '+' : '-'} ₹ {Math.abs(totalBalance).toLocaleString('en-IN')}
+              {totalBalance >= 0 ? '+' : '-'} {currencySymbol} {Math.abs(totalBalance).toLocaleString('en-IN')}
             </Text>
           </View>
         </Card>
@@ -232,7 +249,7 @@ export default function DashboardScreen({ navigation }) {
               <TransactionItem
                 key={tx.id}
                 transaction={tx}
-                currencySymbol="₹"
+                currencySymbol={currencySymbol}
                 onPress={() =>
                   navigation.navigate(ROUTES.TRANSACTION_DETAILS, { transactionId: tx.id })
                 }
@@ -261,6 +278,23 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: spacing.xl,
     paddingTop: spacing.xs,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+  },
+  menuButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+    marginTop: 2,
   },
   headerLeft: {
     flex: 1,

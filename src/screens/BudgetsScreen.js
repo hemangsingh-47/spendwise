@@ -19,6 +19,9 @@ import { Input } from '../components/Input';
 import { colors, spacing, borderRadius, fontWeights } from '../styles/theme';
 import budgetService from '../services/budgetService';
 import { useTransactions } from '../context/TransactionContext';
+import { useAuth } from '../context/AuthContext';
+import { useDrawer } from '../context/DrawerContext';
+import { getCurrencySymbol } from '../utils/currency';
 
 const DEFAULT_CATEGORIES = [
   'Food',
@@ -45,7 +48,10 @@ const CATEGORY_ICONS = {
 };
 
 export default function BudgetsScreen() {
+  const { openDrawer } = useDrawer();
+  const { user } = useAuth();
   const { transactions } = useTransactions();
+  const currencySymbol = getCurrencySymbol(user?.currency);
 
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
@@ -185,7 +191,7 @@ export default function BudgetsScreen() {
   const handleDeleteBudget = (budget) => {
     Alert.alert(
       'Delete Budget',
-      `Are you sure you want to remove the ${budget.category} budget of ₹${budget.limit.toLocaleString()}?`,
+      `Are you sure you want to remove the ${budget.category} budget of ${currencySymbol}${budget.limit.toLocaleString()}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -213,11 +219,23 @@ export default function BudgetsScreen() {
     <View style={styles.headerContainer}>
       {/* Month & Year Bar */}
       <View style={styles.monthSelectorRow}>
-        <View>
-          <Text style={styles.screenTitle}>Monthly Budgets</Text>
-          <Text style={styles.screenSubtitle}>
-            {monthNames[selectedMonth - 1]} {selectedYear}
-          </Text>
+        <View style={styles.headerLeftRow}>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={openDrawer}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Open Navigation Menu"
+          >
+            <Ionicons name="menu-outline" size={24} color={colors.black} />
+          </TouchableOpacity>
+
+          <View>
+            <Text style={styles.screenTitle}>Monthly Budgets</Text>
+            <Text style={styles.screenSubtitle}>
+              {monthNames[selectedMonth - 1]} {selectedYear}
+            </Text>
+          </View>
         </View>
 
         <TouchableOpacity
@@ -240,7 +258,7 @@ export default function BudgetsScreen() {
             <View>
               <Text style={styles.overviewSubtitle}>TOTAL BUDGET</Text>
               <Text style={styles.overviewBudgetAmount}>
-                ₹{summary.totalBudget.toLocaleString()}
+                {currencySymbol}{summary.totalBudget.toLocaleString()}
               </Text>
             </View>
             <View style={[
@@ -287,7 +305,7 @@ export default function BudgetsScreen() {
           <View style={styles.metricsRow}>
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>Spent</Text>
-              <Text style={styles.metricValue}>₹{summary.totalSpent.toLocaleString()}</Text>
+              <Text style={styles.metricValue}>{currencySymbol}{summary.totalSpent.toLocaleString()}</Text>
             </View>
             <View style={styles.metricDivider} />
             <View style={styles.metricItem}>
@@ -298,7 +316,7 @@ export default function BudgetsScreen() {
                   summary.remainingBudget < 0 && { color: colors.error },
                 ]}
               >
-                ₹{summary.remainingBudget.toLocaleString()}
+                {currencySymbol}{summary.remainingBudget.toLocaleString()}
               </Text>
             </View>
             <View style={styles.metricDivider} />
@@ -313,7 +331,7 @@ export default function BudgetsScreen() {
             <View style={styles.warningBanner}>
               <Ionicons name="alert-circle" size={16} color={colors.error} />
               <Text style={styles.warningBannerText}>
-                Monthly budget exceeded by ₹{Math.abs(summary.remainingBudget).toLocaleString()}!
+                Monthly budget exceeded by {currencySymbol}{Math.abs(summary.remainingBudget).toLocaleString()}!
               </Text>
             </View>
           )}
@@ -351,7 +369,7 @@ export default function BudgetsScreen() {
             </View>
             <View>
               <Text style={styles.categoryName}>{item.category}</Text>
-              <Text style={styles.budgetLimitSub}>Limit: ₹{item.limit.toLocaleString()}</Text>
+              <Text style={styles.budgetLimitSub}>Limit: {currencySymbol}{item.limit.toLocaleString()}</Text>
             </View>
           </View>
 
@@ -395,7 +413,7 @@ export default function BudgetsScreen() {
         {/* Numbers Row */}
         <View style={styles.budgetNumbersRow}>
           <Text style={styles.budgetSpentText}>
-            Spent: <Text style={styles.boldText}>₹{item.spent.toLocaleString()}</Text>
+            Spent: <Text style={styles.boldText}>{currencySymbol}{item.spent.toLocaleString()}</Text>
           </Text>
           <Text style={styles.budgetProgressText}>
             {item.percentage}% used
@@ -404,7 +422,7 @@ export default function BudgetsScreen() {
             styles.budgetRemainingText,
             item.remaining < 0 && { color: colors.error },
           ]}>
-            {item.remaining >= 0 ? `Left: ₹${item.remaining.toLocaleString()}` : `Over: ₹${Math.abs(item.remaining).toLocaleString()}`}
+            {item.remaining >= 0 ? `Left: ${currencySymbol}${item.remaining.toLocaleString()}` : `Over: ${currencySymbol}${Math.abs(item.remaining).toLocaleString()}`}
           </Text>
         </View>
 
@@ -534,7 +552,7 @@ export default function BudgetsScreen() {
 
               {/* Monthly Limit Input */}
               <Input
-                label="Monthly Limit (₹)"
+                label={`Monthly Limit (${currencySymbol})`}
                 placeholder="e.g. 5000"
                 keyboardType="numeric"
                 value={limit}
@@ -579,7 +597,7 @@ export default function BudgetsScreen() {
             </View>
 
             <Input
-              label="New Monthly Limit (₹)"
+              label={`New Monthly Limit (${currencySymbol})`}
               placeholder="e.g. 6000"
               keyboardType="numeric"
               value={editLimit}
@@ -634,6 +652,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.lg,
+  },
+  headerLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  menuButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
   },
   screenTitle: {
     fontSize: 24,

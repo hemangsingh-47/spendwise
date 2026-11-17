@@ -14,38 +14,43 @@ import { Platform, NativeModules } from 'react-native';
  */
 
 // Your computer's current Wi-Fi IPv4 address (from 'ipconfig')
-export const DEV_MACHINE_IP = '10.165.196.121';
+export const DEV_MACHINE_IP = '192.168.1.6';
 const PORT = 5000;
 
-const resolveHost = () => {
-  // A. Auto-detect host IP from Metro bundle URL when running inside Expo Go
+const resolveApiBaseUrl = () => {
+  // 1. Explicit production backend URL via Expo environment variable (Phase 11 & 12)
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '');
+  }
+
+  // 2. Auto-detect host IP from Metro bundle URL when running inside Expo Go
   try {
     const scriptURL = NativeModules?.SourceCode?.scriptURL;
     if (scriptURL) {
       const host = scriptURL.split('://')[1]?.split('/')[0]?.split(':')[0];
       if (host && host !== 'localhost' && host !== '127.0.0.1') {
-        return host;
+        return `http://${host}:${PORT}/api/v1`;
       }
     }
   } catch (e) {
     // Ignore and proceed to fallbacks
   }
 
-  // B. Physical device on Wi-Fi
+  // 3. Physical device on Wi-Fi fallback
   if (DEV_MACHINE_IP) {
-    return DEV_MACHINE_IP;
+    return `http://${DEV_MACHINE_IP}:${PORT}/api/v1`;
   }
 
-  // C. Android Emulator fallback
+  // 4. Android Emulator fallback
   if (Platform.OS === 'android') {
-    return '10.0.2.2';
+    return `http://10.0.2.2:${PORT}/api/v1`;
   }
 
-  // D. iOS Simulator / Web fallback
-  return 'localhost';
+  // 5. iOS Simulator / Web fallback
+  return `http://localhost:${PORT}/api/v1`;
 };
 
-export const API_BASE_URL = `http://${resolveHost()}:${PORT}/api/v1`;
+export const API_BASE_URL = resolveApiBaseUrl();
 
 // AsyncStorage Keys
 export const STORAGE_KEYS = {

@@ -16,10 +16,14 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { colors, spacing, borderRadius, layout, fontWeights } from '../styles/theme';
 import { useTransactions } from '../context/TransactionContext';
+import { useAuth } from '../context/AuthContext';
+import { getCurrencySymbol } from '../utils/currency';
 import { ROUTES } from '../constants/routes';
 
 export default function TransactionDetailsScreen({ route, navigation }) {
   const { transactionId } = route.params || {};
+  const { user } = useAuth();
+  const currencySymbol = getCurrencySymbol(user?.currency);
   const { getTransactionById, deleteTransaction, uploadReceipt, deleteReceipt } = useTransactions();
 
   const [isUploading, setIsUploading] = useState(false);
@@ -174,7 +178,7 @@ export default function TransactionDetailsScreen({ route, navigation }) {
 
         {/* Amount */}
         <Text style={styles.amount}>
-          {isIncome ? '+' : '-'} ₹ {Number(transaction.amount).toLocaleString('en-IN')}
+          {isIncome ? '+' : '-'} {currencySymbol} {Number(transaction.amount).toLocaleString('en-IN')}
         </Text>
 
         <Text style={styles.description}>{transaction.description}</Text>

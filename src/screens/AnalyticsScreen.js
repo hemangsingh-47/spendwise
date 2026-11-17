@@ -16,9 +16,15 @@ import analyticsService from '../services/analyticsService';
 import MonthlyBarChart from '../components/charts/MonthlyBarChart';
 import CategoryPieChart from '../components/charts/CategoryPieChart';
 import { useTransactions } from '../context/TransactionContext';
+import { useAuth } from '../context/AuthContext';
+import { useDrawer } from '../context/DrawerContext';
+import { getCurrencySymbol } from '../utils/currency';
 
 export default function AnalyticsScreen() {
+  const { openDrawer } = useDrawer();
+  const { user } = useAuth();
   const { transactions } = useTransactions();
+  const currencySymbol = getCurrencySymbol(user?.currency);
 
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -104,7 +110,17 @@ export default function AnalyticsScreen() {
       >
         {/* Header */}
         <View style={styles.headerRow}>
-          <View>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={openDrawer}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Open Navigation Menu"
+          >
+            <Ionicons name="menu-outline" size={24} color={colors.black} />
+          </TouchableOpacity>
+
+          <View style={styles.headerTextWrap}>
             <Text style={styles.headerTitle}>Financial Analytics</Text>
             <Text style={styles.headerSubtitle}>Reports, trends & spending insights</Text>
           </View>
@@ -159,7 +175,7 @@ export default function AnalyticsScreen() {
                     summary && summary.netSavings < 0 && { color: colors.error },
                   ]}
                 >
-                  ₹{summary ? Math.abs(summary.netSavings).toLocaleString() : '0'}
+                  {currencySymbol}{summary ? Math.abs(summary.netSavings).toLocaleString() : '0'}
                 </Text>
                 <Text style={styles.kpiSubValue}>
                   {summary && summary.netSavings >= 0 ? 'Surplus' : 'Deficit'} • {summary?.savingsPercentage || 0}% rate
@@ -171,7 +187,7 @@ export default function AnalyticsScreen() {
                 <Card variant="white" style={[styles.kpiHalfCard, { marginRight: spacing.sm }]}>
                   <Text style={styles.kpiMiniLabel}>INFLOW</Text>
                   <Text style={styles.kpiIncomeValue}>
-                    +₹{summary?.totalIncome?.toLocaleString() || '0'}
+                    +{currencySymbol}{summary?.totalIncome?.toLocaleString() || '0'}
                   </Text>
                   <Text style={styles.kpiCountSub}>{summary?.incomeCount || 0} entries</Text>
                 </Card>
@@ -179,7 +195,7 @@ export default function AnalyticsScreen() {
                 <Card variant="white" style={[styles.kpiHalfCard, { marginLeft: spacing.sm }]}>
                   <Text style={styles.kpiMiniLabel}>OUTFLOW</Text>
                   <Text style={styles.kpiExpenseValue}>
-                    -₹{summary?.totalExpenses?.toLocaleString() || '0'}
+                    -{currencySymbol}{summary?.totalExpenses?.toLocaleString() || '0'}
                   </Text>
                   <Text style={styles.kpiCountSub}>{summary?.expenseCount || 0} entries</Text>
                 </Card>
@@ -207,7 +223,7 @@ export default function AnalyticsScreen() {
                           : { color: colors.success },
                       ]}
                     >
-                      {summary.comparison.expenseChange > 0 ? '+₹' : '-₹'}
+                      {summary.comparison.expenseChange > 0 ? `+${currencySymbol}` : `-${currencySymbol}`}
                       {Math.abs(summary.comparison.expenseChange).toLocaleString()}
                     </Text>
                   </View>
@@ -222,7 +238,7 @@ export default function AnalyticsScreen() {
                           : { color: colors.error },
                       ]}
                     >
-                      {summary.comparison.incomeChange >= 0 ? '+₹' : '-₹'}
+                      {summary.comparison.incomeChange >= 0 ? `+${currencySymbol}` : `-${currencySymbol}`}
                       {Math.abs(summary.comparison.incomeChange).toLocaleString()}
                     </Text>
                   </View>
@@ -238,7 +254,7 @@ export default function AnalyticsScreen() {
                   <Text style={styles.cardSubtitle}>Income vs Expenses comparison</Text>
                 </View>
               </View>
-              <MonthlyBarChart data={monthlyTrend} />
+              <MonthlyBarChart data={monthlyTrend} currencySymbol={currencySymbol} />
             </Card>
 
             {/* Category-wise Expense Breakdown */}
@@ -254,6 +270,7 @@ export default function AnalyticsScreen() {
               <CategoryPieChart
                 data={categories}
                 totalExpense={summary?.totalExpenses || 0}
+                currencySymbol={currencySymbol}
               />
             </Card>
           </>
@@ -273,7 +290,23 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl * 2,
   },
   headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: spacing.md,
+  },
+  menuButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+  },
+  headerTextWrap: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 24,

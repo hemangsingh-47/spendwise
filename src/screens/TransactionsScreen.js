@@ -13,7 +13,11 @@ import { TransactionItem } from '../components/dashboard';
 import { Button } from '../components/Button';
 import { colors, spacing, borderRadius, layout, fontWeights } from '../styles/theme';
 import { useTransactions } from '../context/TransactionContext';
+import { useAuth } from '../context/AuthContext';
+import { getCurrencySymbol } from '../utils/currency';
 import { ROUTES } from '../constants/routes';
+import { Ionicons } from '@expo/vector-icons';
+import { useDrawer } from '../context/DrawerContext';
 
 const CATEGORIES = [
   'All',
@@ -30,6 +34,9 @@ const CATEGORIES = [
 ];
 
 export default function TransactionsScreen({ navigation }) {
+  const { openDrawer } = useDrawer();
+  const { user } = useAuth();
+  const currencySymbol = getCurrencySymbol(user?.currency);
   const { transactions, isLoading, isRefreshing, refreshTransactions, error } = useTransactions();
 
   // Search & Filter State (Phase 5)
@@ -63,11 +70,23 @@ export default function TransactionsScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/* 1. Header Bar */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Transactions</Text>
-          <Text style={styles.headerSubtitle}>
-            {filteredTransactions.length} of {transactions.length} records
-          </Text>
+        <View style={styles.headerLeftRow}>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={openDrawer}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Open Navigation Menu"
+          >
+            <Ionicons name="menu-outline" size={24} color={colors.black} />
+          </TouchableOpacity>
+
+          <View>
+            <Text style={styles.headerTitle}>Transactions</Text>
+            <Text style={styles.headerSubtitle}>
+              {filteredTransactions.length} of {transactions.length} records
+            </Text>
+          </View>
         </View>
 
         <TouchableOpacity
@@ -176,7 +195,7 @@ export default function TransactionsScreen({ navigation }) {
           renderItem={({ item }) => (
             <TransactionItem
               transaction={item}
-              currencySymbol="₹"
+              currencySymbol={currencySymbol}
               onPress={() =>
                 navigation.navigate(ROUTES.TRANSACTION_DETAILS, {
                   transactionId: item.id,
@@ -221,6 +240,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.screenPaddingHorizontal,
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
+  },
+  headerLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  menuButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
   },
   headerTitle: {
     fontSize: 22,

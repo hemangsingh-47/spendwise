@@ -861,3 +861,128 @@ if (password !== confirmPassword) {
 **Answer:** By default, MongoDB stores all dates in UTC (Coordinated Universal Time). In India (IST, UTC+5:30), a transaction recorded on November 1 at 2:00 AM IST has a UTC timestamp of October 31 at 8:30 PM. Without passing `{ timezone: '+05:30' }` to MongoDB's `$year` and `$month` aggregation operators, the database would mistakenly assign the transaction to October instead of November. Passing timezone ensures 100% calendar accuracy.
 
 ---
+
+
+---
+
+# PHASE 11: PROFILE, TESTING & DEPLOYMENT READINESS
+
+## 1. What We Built & Configured
+- **Production Profile & Settings Screen (`src/screens/ProfileScreen.js`):**
+  - Displays user identity (monochrome initials avatar, full name, email, student badge, currency symbol, account ID, and security badges).
+  - Built **Edit Profile Modal** allowing users to update their name and pick from supported currencies (`INR ₹`, `USD $`, `EUR €`, `GBP £`). Email is locked with an explanation.
+  - Built **Change Password Modal** requiring current password, new password (min. 6 chars), and confirmation match, with eye toggle controls.
+  - Implemented **Notification Preferences** toggle that checks device permissions and toggles local budget alerts.
+  - Integrated **System Diagnostics** button that calls `GET /api/v1/health` to verify live backend connectivity.
+  - Handled session termination via a confirmation dialog that clears tokens and redirects to Login.
+- **Dynamic App-wide Currency System (`src/utils/currency.js`):**
+  - Centralized currency symbols and formatting utilities (`getCurrencySymbol`, `formatCurrency`).
+  - Integrated dynamic currency preference into Dashboard, Balance Card, Summary Cards, Budget Cards, Analytics KPI cards, and Slide Drawer.
+- **Multi-User Security & Authorization Testing (`backend/test/phase11.test.js`):**
+  - Created 19 automated integration tests covering multi-user transaction/budget/analytics isolation, profile updating, password changing, and health check validation.
+  - Verified 100% pass rate across all 5 backend test suites (67 / 67 automated tests passing).
+- **Backend Production Readiness:**
+  - Standardized health check `GET /api/v1/health` returning operational status, database state, uptime, and environment without exposing secrets.
+  - Configured `backend/render.yaml` for one-click deployment on Render.
+  - Maintained clean `.env.example` with placeholders for environment variables.
+- **Frontend Production Configuration:**
+  - Configured Android package identifier `com.hemangsingh.spendwise`, `versionCode: 1`, `version: "1.0.0"`, and system permissions in `app.json`.
+  - Configured centralized API base URL resolver in `src/constants/api.js` supporting `process.env.EXPO_PUBLIC_API_URL` with fallback to local Wi-Fi IP `192.168.1.6:5000`.
+  - Configured `eas.json` build profiles ready for Phase 12 APK generation.
+
+---
+
+## 2. Core Concepts Explained (Hinglish Explanation)
+
+### A. Profile Management aur Backend Syncing
+- **English:** The Profile screen fetches user metadata directly from the authenticated session and allows updating user details via `PUT /api/v1/auth/profile`. The email address is locked as read-only to prevent unauthorized identity tampering without a dedicated email verification OTP flow.
+- **Hinglish:** Profile screen user ki details (name, email, initials avatar, currency) show karta hai. User apna naam aur currency change kar sakta hai jo backend par `PUT /api/v1/auth/profile` ke through save hota hai. Email ko humne read-only (locked) rakha hai taaki koi bina email verify kiye doosre ka email hijack na kar sake.
+
+### B. Change Password Security Workflow
+- **English:** When changing a password, the user submits `currentPassword` and `newPassword`. The backend verifies the current password against the stored bcrypt hash using `user.matchPassword(currentPassword)`. If valid, the new password is assigned to the Mongoose model, triggering the pre-save hook to re-hash it with 10 salt rounds before saving. Plain-text passwords are never logged or stored.
+- **Hinglish:** Password change karte waqt client 3 fields mangta hai: Current Password, New Password, aur Confirm Password. Backend par pehle check hota hai ki current password sahi hai ya nahi (`user.matchPassword()`). Agar sahi hai, toh naya password Mongoose pre-save hook ke through 10 rounds of salt ke sath bcrypt me hash ho kar MongoDB me save ho jata hai. Plain-text password database me kabhi nahi jata.
+
+### C. Currency Preference without False Conversion
+- **English:** In SpendWise, changing the display currency from INR to USD updates the visual currency symbol (`₹` to `$`) across screens, but leaves stored transaction amounts as pure numerical values in MongoDB. We do NOT perform mathematical currency conversion because without a real-time banking exchange-rate API, multiplying values leads to permanent data corruption.
+- **Hinglish:** Currency badalne par app sirf symbol badalti hai (jaise ₹ se $), database ke numerical amount ko multiply ya convert nahi karti. Agar bina live exchange-rate API ke hum ₹1,000 ko $12 bana denge, toh user ka asli record corrupt ho jayega. Isliye amounts database me hamesha pure numbers rehte hain.
+
+### D. Multi-User Data Isolation (Tenant Security)
+- **English:** Every database operation in SpendWise is scoped by the authenticated user's ID (`req.user._id`), extracted securely from the verified JWT payload. The backend never accepts a `userId` from query parameters or request bodies. If User A attempts to read, update, or delete User B's transaction or budget ID, the database query finds no matching document for `req.user._id` and returns `404 Not Found`, ensuring total cross-user isolation.
+- **Hinglish:** SpendWise me multi-user security sabse important hai. Har transaction aur budget ke sath `userId` save hoti hai. Jab bhi koi request aati hai, Express ka JWT middleware token verify karke user ki ID nikalta hai. Agar User A chalaki se User B ki transaction ID bhejta hai, toh query hoti hai `{ _id: txId, userId: UserA._id }`. Yeh document MongoDB me nahi milta aur server 404 return kar deta hai. Client se bheje gaye kisi bhi fake `userId` par bharosa nahi kiya jata.
+
+### E. Health Check Endpoint & Zero Secret Leaks
+- **English:** A health check endpoint (`GET /api/v1/health`) allows cloud hosting platforms (like Render or AWS) and client apps to verify server uptime and database connectivity. It returns operational metrics (status, database state, uptime) while strictly omitting all sensitive configuration keys like `JWT_SECRET` and `MONGODB_URI`.
+- **Hinglish:** Health check endpoint (`GET /api/v1/health`) server ka pulse check karne jaisa hai. Render hosting aur mobile app isse call karke dekhte hain ki backend aur database chal rahe hain ya nahi. Sabse zaroori baat yeh hai ki is response me `JWT_SECRET` ya `MONGODB_URI` jaise secrets kabhi leak nahi hone chahiye.
+
+### F. Backend Cloud Hosting with Render & MongoDB Atlas
+- **English:** Render is a modern cloud hosting platform for web services. Using `render.yaml`, Render automatically detects the Node.js application, runs `npm install`, and starts the server with `npm start`. In production, the local MongoDB (`mongodb://localhost:27017`) is swapped with MongoDB Atlas (a cloud-hosted MongoDB cluster on AWS/GCP) via the `MONGODB_URI` environment variable.
+- **Hinglish:** Local computer par backend `localhost:5000` par chalta hai, lekin doosre log use access nahi kar sakte jab tak computer on na ho. Render ek free cloud hosting platform hai jahan hamara Express backend 24/7 internet par live rehta hai. Aur database ke liye hum MongoDB Atlas use karte hain jo cloud me chalta hai, taaki app kahin se bhi chal sake.
+
+---
+
+# VIVA QUESTIONS & ANSWERS (TOP 65 FOR CSE 2ND YEAR VIVA)
+
+*(Questions Q1 to Q50 remain in previous sections. Below are 15 new in-depth questions for Phase 11)*
+
+### Q51. What is multi-user security isolation and how does SpendWise enforce it in every route?
+**Answer:** Multi-user security isolation ensures that multiple users can use the same application and database without ever seeing, modifying, or deleting each other's private financial data. SpendWise enforces this by extracting the verified user ID (`req.user._id`) from the cryptographically signed JWT token inside `authMiddleware.js`. In every controller (Transactions, Budgets, Analytics), database queries strictly include `{ userId: req.user._id }`. Even if a malicious user knows another user's document ObjectId, MongoDB will return `404 Not Found` because the `userId` condition fails.
+
+### Q52. Why should the backend never trust a `userId` sent from the mobile client request body or URL?
+**Answer:** Any data sent from a mobile client (such as HTTP request bodies, headers, or query parameters) can be easily intercepted and altered using debugging proxies (like Postman, Charles, or Burp Suite). If the backend relied on `req.body.userId`, an attacker could pass another user's ID to steal or delete their expenses (an Insecure Direct Object Reference or IDOR vulnerability). By extracting `userId` solely from the server-verified JWT token, the server guarantees the identity belongs to the authenticated user.
+
+### Q53. How does the profile update API work and why is the email field locked?
+**Answer:** The profile update endpoint (`PUT /api/v1/auth/profile`) allows users to update safe cosmetic fields like `name` and `currency`. The email field is deliberately filtered out on the backend and cannot be updated through this endpoint. Email serves as the primary unique account identifier; allowing arbitrary email updates without an OTP verification workflow would allow account takeover attacks or account locking.
+
+### Q54. Explain the step-by-step security workflow when a user changes their password.
+**Answer:**
+1. The user enters their `currentPassword`, `newPassword`, and `confirmPassword`.
+2. Client validates that all fields are non-empty, `newPassword >= 6` characters, and `newPassword === confirmPassword`.
+3. Client sends a POST request with the JWT Bearer token to `/api/v1/auth/change-password`.
+4. The backend loads the user document from MongoDB including the password hash.
+5. The backend calls `user.matchPassword(currentPassword)`, which uses `bcrypt.compare()` to check if the current password is correct.
+6. If correct, `user.password = newPassword` is set and `user.save()` is called.
+7. Mongoose's `pre('save')` hook detects `isModified('password')`, generates a cryptographic salt (`bcrypt.genSalt(10)`), and hashes the new password before storing it.
+
+### Q55. Why is bcrypt used instead of plain SHA-256 or MD5 for password hashing?
+**Answer:** SHA-256 and MD5 are general-purpose, high-speed cryptographic hash algorithms designed to process gigabytes of data quickly. Because they are fast, an attacker using modern GPUs can compute billions of guesses per second using rainbow tables. In contrast, `bcrypt` is an intentionally slow, adaptive, key-derivation function. It incorporates a random salt (to defeat precomputed rainbow tables) and an adjustable work factor (10 rounds in SpendWise), making brute-force dictionary attacks computationally infeasible.
+
+### Q56. Why are monetary amounts stored as pure numbers in MongoDB rather than formatting them with currency symbols?
+**Answer:** Storing monetary values as strings with symbols (e.g., `"₹1,500.00"`) destroys the database's ability to perform mathematical aggregations (`$sum`, `$avg`, comparisons `$gt`, `$lt`) and numeric indexing. Storing amounts as pure floating-point or integer numbers (e.g., `1500`) allows high-speed database aggregation, accurate arithmetic calculations, and flexible client-side formatting in any currency without data corruption.
+
+### Q57. How does the dynamic currency preference system work across the frontend?
+**Answer:** When a user updates their preferred currency (e.g., from `INR` to `USD`), the preference is saved in their MongoDB user document and updated in `AuthContext`. Components consume the preference via `getCurrencySymbol(user?.currency)` from `src/utils/currency.js`. The symbol is passed into `BalanceCard`, `SummaryCard`, `MonthlyBarChart`, and `CategoryPieChart` to dynamically render `$` or `₹` without modifying any underlying transaction values.
+
+### Q58. Why must an app check operating system permissions before enabling notifications?
+**Answer:** Modern mobile operating systems (Android 13+ and iOS) strictly require runtime permission grants before an application is allowed to post notifications to the system tray. If an app attempts to fire notifications without checking or after the user has denied permission, the OS silently drops the notification. Respecting OS permission prevents bad user experiences and ensures the app does not mislead the user into thinking alerts are active when they are blocked by the OS.
+
+### Q59. What is a health check endpoint and why is it essential for production deployments?
+**Answer:** A health check endpoint (`GET /api/v1/health`) is an automated diagnostic URL used by load balancers, container orchestrators (like Kubernetes or Docker), and cloud hosting platforms (like Render). It performs lightweight checks (such as verifying MongoDB connection state) and returns an HTTP `200 OK`. If the server crashes or the database disconnects, the health check fails, allowing the hosting platform to automatically restart the unhealthy instance or divert traffic away from it.
+
+### Q60. Why should environment variables (`.env`) never be committed to Git?
+**Answer:** `.env` files contain sensitive production credentials such as database connection strings with passwords (`MONGODB_URI`), cryptographic secrets (`JWT_SECRET`), and third-party API keys (`CLOUDINARY_*`). Committing `.env` to Git pushes these secrets to GitHub, exposing them to attackers who scrape repositories with automated bots, leading to database compromise and financial loss. Instead, `.env` is listed in `.gitignore`, and only `.env.example` with placeholder strings is tracked.
+
+### Q61. What is the difference between local MongoDB (`localhost:27017`) and MongoDB Atlas in the cloud?
+**Answer:**
+- **Local MongoDB:** Runs as a service on the developer's physical computer (`127.0.0.1:27017`). It requires no internet access and is fast for local development, but it is inaccessible to outside users or cloud hosting servers.
+- **MongoDB Atlas:** A fully-managed cloud database-as-a-service hosted on AWS, Google Cloud, or Azure. It provides high availability, automated backups, replication sets, and global accessibility via an encrypted connection string (`mongodb+srv://...`), making it essential for production mobile backends.
+
+### Q62. What is Render and how does `render.yaml` automate web service deployment?
+**Answer:** Render is a unified cloud platform that hosts static sites, Node.js backend web services, and databases. The `render.yaml` file is an "Infrastructure-as-Code" (IaC) configuration. It instructs Render to build the project (`npm install`), specify the runtime (`node`), run the start command (`npm start`), monitor health at `/api/v1/health`, and automatically inject required production environment variables.
+
+### Q63. What is the significance of the Android `package` identifier in `app.json`?
+**Answer:** The Android `package` property (e.g., `com.hemangsingh.spendwise`) is the globally unique reverse-domain identifier for the application on the Android operating system and Google Play Store. It distinguishes the app from every other app on the user's device, determines its private sandboxed data directory in `/data/data/<package>`, and ensures seamless application updates without conflict.
+
+### Q64. What is the difference between an Expo Go development workflow and a production standalone APK?
+**Answer:**
+- **Expo Go:** A pre-built shell client installed from Google Play that downloads and runs JavaScript bundles over Metro Wi-Fi. It allows instant hot-reloading during development but contains extraneous debug code and requires an internet connection to the developer's PC.
+- **Standalone APK (Android Package):** A self-contained, compiled Android binary containing the embedded Hermes JavaScript bytecode, production assets, and native C++/Java Android code. It installs directly on any Android phone and runs completely independently without Expo Go or Metro.
+
+### Q65. How do you troubleshoot network connection errors (`Network Error` / `ECONNREFUSED`) when testing a React Native app on a physical phone?
+**Answer:**
+1. **IP Addressing:** Ensure the phone and PC are connected to the EXACT same Wi-Fi network.
+2. **Avoid `localhost`:** In mobile apps, `localhost` refers to the mobile phone itself, not the computer running the Express server. The app must point to the PC's LAN IP (e.g., `192.168.1.6:5000`).
+3. **Firewall Settings:** Ensure Windows Defender Firewall allows incoming TCP connections on Port 5000.
+4. **Backend Server Status:** Verify the Express server is running and listening on `0.0.0.0` or local network interfaces rather than only bound to `127.0.0.1`.
+5. **CORS Configuration:** Verify that CORS middleware (`cors()`) is configured on Express to permit incoming requests from mobile origins.
+
+---

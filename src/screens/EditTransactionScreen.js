@@ -12,6 +12,8 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { colors, spacing, borderRadius, layout, fontWeights } from '../styles/theme';
 import { useTransactions } from '../context/TransactionContext';
+import { useAuth } from '../context/AuthContext';
+import { getCurrencySymbol } from '../utils/currency';
 import budgetService from '../services/budgetService';
 import notificationService from '../services/notificationService';
 
@@ -38,6 +40,8 @@ const PAYMENT_METHODS = ['UPI', 'Cash', 'Debit Card', 'Credit Card', 'Net Bankin
 
 export default function EditTransactionScreen({ navigation, route }) {
   const { transactionId } = route.params || {};
+  const { user } = useAuth();
+  const currencySymbol = getCurrencySymbol(user?.currency);
   const { getTransactionById, editTransaction } = useTransactions();
 
   const existingTx = getTransactionById(transactionId);
@@ -209,7 +213,7 @@ export default function EditTransactionScreen({ navigation, route }) {
 
         {/* Amount Input */}
         <Input
-          label="Amount (₹)"
+          label={`Amount (${currencySymbol})`}
           placeholder="e.g. 450"
           value={amount}
           onChangeText={(val) => {

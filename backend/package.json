@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node test/api.test.js && node test/auth.test.js && node test/budget.test.js && node test/analytics.test.js",
+    "test": "node test/api.test.js && node test/auth.test.js && node test/budget.test.js && node test/analytics.test.js && node test/phase11.test.js",
+    "test:phase11": "node test/phase11.test.js",
     "test:analytics": "node test/analytics.test.js",
     "test:budget": "node test/budget.test.js",
     "test:auth": "node test/auth.test.js",

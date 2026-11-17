@@ -17,8 +17,8 @@ connectDB();
 const server = app.listen(PORT, HOST, () => {
   console.log(`[SpendWise-Backend] Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
   console.log(`[SpendWise-Backend] Local:   http://localhost:${PORT}/api/v1/health`);
-  console.log(`[SpendWise-Backend] Network: http://10.165.196.121:${PORT}/api/v1/health`);
-  console.log(`[SpendWise-Backend] Mobile App API Base: http://10.165.196.121:${PORT}/api/v1`);
+  console.log(`[SpendWise-Backend] Network: http://192.168.1.6:${PORT}/api/v1/health`);
+  console.log(`[SpendWise-Backend] Mobile App API Base: http://192.168.1.6:${PORT}/api/v1`);
 });
 
 // Handle unhandled promise rejections gracefully

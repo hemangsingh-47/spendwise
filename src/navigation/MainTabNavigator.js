@@ -5,7 +5,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import TransactionsScreen from '../screens/TransactionsScreen';
 import BudgetsScreen from '../screens/BudgetsScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
-import ProfilePlaceholderScreen from '../screens/ProfilePlaceholderScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 import { ROUTES } from '../constants/routes';
 import { colors, fontWeights } from '../styles/theme';
 
@@ -72,7 +72,7 @@ export default function MainTabNavigator() {
       />
       <Tab.Screen
         name={ROUTES.PROFILE_TAB}
-        component={ProfilePlaceholderScreen}
+        component={ProfileScreen}
         options={{ tabBarLabel: 'Profile' }}
       />
     </Tab.Navigator>
