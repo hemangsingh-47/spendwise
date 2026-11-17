@@ -5,13 +5,19 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { colors, spacing, borderRadius, layout, fontWeights } from '../styles/theme';
 import { useTransactions } from '../context/TransactionContext';
+import budgetService from '../services/budgetService';
+import notificationService from '../services/notificationService';
 
 const EXPENSE_CATEGORIES = [
   'Food',
@@ -35,7 +41,7 @@ const INCOME_CATEGORIES = [
 const PAYMENT_METHODS = ['UPI', 'Cash', 'Debit Card', 'Credit Card', 'Net Banking'];
 
 export default function AddTransactionScreen({ navigation, route }) {
-  const { addTransaction } = useTransactions();
+  const { addTransaction, uploadReceipt } = useTransactions();
   const defaultType = route.params?.defaultType || 'expense';
 
   // Form State
@@ -47,6 +53,7 @@ export default function AddTransactionScreen({ navigation, route }) {
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('UPI');
+  const [receiptUri, setReceiptUri] = useState(null);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -55,6 +62,69 @@ export default function AddTransactionScreen({ navigation, route }) {
   const handleTypeChange = (newType) => {
     setType(newType);
     setCategory(newType === 'income' ? 'Salary' : 'Food');
+  };
+
+  // Image Picker: Camera
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Camera access is needed to capture and attach your expense receipt.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setReceiptUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      Alert.alert('Camera Error', err.message || 'Could not open camera');
+    }
+  };
+
+  // Image Picker: Gallery
+  const handlePickFromGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Gallery access is needed to upload a photo of your receipt.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setReceiptUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      Alert.alert('Gallery Error', err.message || 'Could not open gallery');
+    }
+  };
+
+  const handlePromptReceipt = () => {
+    Alert.alert(
+      'Attach Receipt Photo',
+      'Choose an option to upload your expense receipt:',
+      [
+        { text: 'Take Photo', onPress: handleTakePhoto },
+        { text: 'Choose from Gallery', onPress: handlePickFromGallery },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const handleSave = async () => {
@@ -91,7 +161,7 @@ export default function AddTransactionScreen({ navigation, route }) {
 
     setIsSubmitting(true);
     try {
-      await addTransaction({
+      const createdTx = await addTransaction({
         type,
         amount: numAmount,
         category,
@@ -100,9 +170,43 @@ export default function AddTransactionScreen({ navigation, route }) {
         paymentMethod,
       });
 
+      // If a receipt photo was picked, upload it to the newly created transaction
+      if (createdTx?.id && receiptUri) {
+        try {
+          await uploadReceipt(createdTx.id, receiptUri);
+        } catch (uploadErr) {
+          console.warn('[AddTransaction] Receipt upload warning:', uploadErr.message);
+        }
+      }
+
+      // Check Budget Warning Thresholds if expense
+      if (type === 'expense') {
+        try {
+          const txDate = new Date(date);
+          const month = txDate.getMonth() + 1;
+          const year = txDate.getFullYear();
+          const budgetData = await budgetService.getBudgets(month, year);
+          const matchedBudget = (budgetData.data || []).find(
+            (b) => b.category.toLowerCase() === category.toLowerCase()
+          );
+
+          if (matchedBudget && matchedBudget.limit > 0) {
+            await notificationService.evaluateBudgetThreshold(
+              category,
+              matchedBudget.spent,
+              matchedBudget.limit,
+              month,
+              year
+            );
+          }
+        } catch (notifErr) {
+          console.warn('[AddTransaction] Budget notification check warning:', notifErr.message);
+        }
+      }
+
       Alert.alert(
         'Transaction Recorded',
-        `${type === 'income' ? 'Income' : 'Expense'} of ₹${numAmount} successfully saved to MongoDB!`,
+        `${type === 'income' ? 'Income' : 'Expense'} of ₹${numAmount.toLocaleString()} successfully saved to MongoDB!`,
         [
           {
             text: 'Done',
@@ -112,6 +216,10 @@ export default function AddTransactionScreen({ navigation, route }) {
       );
     } catch (err) {
       Alert.alert('Save Failed', err.message || 'Could not save transaction to server.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
     } finally {
       setIsSubmitting(false);
     }
@@ -271,6 +379,43 @@ export default function AddTransactionScreen({ navigation, route }) {
           })}
         </View>
 
+        {/* Receipt Photo Attachment (Phase 10) */}
+        <Text style={styles.fieldLabel}>RECEIPT PHOTO (OPTIONAL)</Text>
+        {receiptUri ? (
+          <View style={styles.receiptPreviewContainer}>
+            <Image source={{ uri: receiptUri }} style={styles.receiptThumbnail} />
+            <View style={styles.receiptPreviewInfo}>
+              <Text style={styles.receiptAttachedText}>Receipt attached</Text>
+              <View style={styles.receiptActionButtons}>
+                <TouchableOpacity
+                  style={styles.receiptActionBtn}
+                  onPress={handlePromptReceipt}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.receiptActionText}>Replace</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.receiptActionBtn, { borderColor: colors.border }]}
+                  onPress={() => setReceiptUri(null)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.receiptActionText, { color: colors.error }]}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.attachReceiptBox}
+            onPress={handlePromptReceipt}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="camera-outline" size={20} color={colors.dark} />
+            <Text style={styles.attachReceiptText}>Attach Receipt Photo</Text>
+            <Text style={styles.attachReceiptSub}>Camera or Gallery (JPEG, PNG)</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Action Buttons */}
         <Button
           title={isSubmitting ? 'Saving to Database...' : `Save ${type === 'income' ? 'Income' : 'Expense'}`}
@@ -383,5 +528,70 @@ const styles = StyleSheet.create({
   saveButton: {
     marginTop: spacing.md,
     marginBottom: spacing.sm,
+  },
+  attachReceiptBox: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    borderRadius: borderRadius.medium,
+    backgroundColor: colors.card,
+    padding: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  attachReceiptText: {
+    fontSize: 13,
+    fontWeight: fontWeights.semibold,
+    color: colors.dark,
+    marginTop: 4,
+  },
+  attachReceiptSub: {
+    fontSize: 11,
+    color: colors.grey,
+    marginTop: 2,
+  },
+  receiptPreviewContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.medium,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+    gap: spacing.md,
+  },
+  receiptThumbnail: {
+    width: 60,
+    height: 60,
+    borderRadius: borderRadius.small,
+    backgroundColor: colors.border,
+  },
+  receiptPreviewInfo: {
+    flex: 1,
+  },
+  receiptAttachedText: {
+    fontSize: 13,
+    fontWeight: fontWeights.semibold,
+    color: colors.black,
+    marginBottom: 6,
+  },
+  receiptActionButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  receiptActionBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.small,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  receiptActionText: {
+    fontSize: 11,
+    fontWeight: fontWeights.medium,
+    color: colors.dark,
   },
 });

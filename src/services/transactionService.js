@@ -58,6 +58,40 @@ export const transactionService = {
     const response = await api.delete(`/transactions/${id}`);
     return response.data;
   },
+
+  /**
+   * Upload receipt photo for a transaction (Phase 10)
+   * @param {string} id Transaction ID
+   * @param {string} fileUri Local file URI from image picker
+   */
+  uploadReceipt: async (id, fileUri) => {
+    const formData = new FormData();
+    const filename = fileUri.split('/').pop() || 'receipt.jpg';
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+    formData.append('receipt', {
+      uri: fileUri,
+      name: filename,
+      type,
+    });
+
+    const response = await api.post(`/transactions/${id}/receipt`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Delete receipt photo from a transaction (Phase 10)
+   * @param {string} id Transaction ID
+   */
+  deleteReceipt: async (id) => {
+    const response = await api.delete(`/transactions/${id}/receipt`);
+    return response.data;
+  },
 };
 
 export default transactionService;

@@ -3,7 +3,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import DashboardScreen from '../screens/DashboardScreen';
 import TransactionsScreen from '../screens/TransactionsScreen';
-import BudgetsPlaceholderScreen from '../screens/BudgetsPlaceholderScreen';
+import BudgetsScreen from '../screens/BudgetsScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
 import ProfilePlaceholderScreen from '../screens/ProfilePlaceholderScreen';
 import { ROUTES } from '../constants/routes';
 import { colors, fontWeights } from '../styles/theme';
@@ -39,6 +40,8 @@ export default function MainTabNavigator() {
             iconName = focused ? 'receipt' : 'receipt-outline';
           } else if (route.name === ROUTES.BUDGETS_TAB) {
             iconName = focused ? 'pie-chart' : 'pie-chart-outline';
+          } else if (route.name === ROUTES.ANALYTICS_TAB) {
+            iconName = focused ? 'bar-chart' : 'bar-chart-outline';
           } else if (route.name === ROUTES.PROFILE_TAB) {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -59,8 +62,13 @@ export default function MainTabNavigator() {
       />
       <Tab.Screen
         name={ROUTES.BUDGETS_TAB}
-        component={BudgetsPlaceholderScreen}
+        component={BudgetsScreen}
         options={{ tabBarLabel: 'Budgets' }}
+      />
+      <Tab.Screen
+        name={ROUTES.ANALYTICS_TAB}
+        component={AnalyticsScreen}
+        options={{ tabBarLabel: 'Analytics' }}
       />
       <Tab.Screen
         name={ROUTES.PROFILE_TAB}

@@ -6,8 +6,11 @@ const {
   getTransactionById,
   updateTransaction,
   deleteTransaction,
+  uploadReceipt,
+  removeReceipt,
 } = require('../controllers/transactionController');
 const { protect } = require('../middleware/authMiddleware');
+const upload = require('../middleware/uploadMiddleware');
 
 /**
  * Transaction Routes
@@ -24,5 +27,10 @@ router.route('/:id')
   .get(getTransactionById)
   .put(updateTransaction)
   .delete(deleteTransaction);
+
+// Receipt photo upload & delete (Phase 10)
+router.route('/:id/receipt')
+  .post(upload.single('receipt'), uploadReceipt)
+  .delete(removeReceipt);
 
 module.exports = router;

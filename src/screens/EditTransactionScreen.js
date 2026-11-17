@@ -12,6 +12,8 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { colors, spacing, borderRadius, layout, fontWeights } from '../styles/theme';
 import { useTransactions } from '../context/TransactionContext';
+import budgetService from '../services/budgetService';
+import notificationService from '../services/notificationService';
 
 const EXPENSE_CATEGORIES = [
   'Food',
@@ -116,6 +118,31 @@ export default function EditTransactionScreen({ navigation, route }) {
         date,
         paymentMethod,
       });
+
+      // Check budget threshold alert if expense
+      if (type === 'expense') {
+        try {
+          const txDate = new Date(date);
+          const month = txDate.getMonth() + 1;
+          const year = txDate.getFullYear();
+          const budgetData = await budgetService.getBudgets(month, year);
+          const matchedBudget = (budgetData.data || []).find(
+            (b) => b.category.toLowerCase() === category.toLowerCase()
+          );
+
+          if (matchedBudget && matchedBudget.limit > 0) {
+            await notificationService.evaluateBudgetThreshold(
+              category,
+              matchedBudget.spent,
+              matchedBudget.limit,
+              month,
+              year
+            );
+          }
+        } catch (notifErr) {
+          console.warn('[EditTransaction] Budget alert check warning:', notifErr.message);
+        }
+      }
 
       Alert.alert(
         'Changes Saved',

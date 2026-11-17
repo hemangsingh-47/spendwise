@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
+const { uploadReceiptImage, deleteReceiptImage } = require('../utils/receiptUploader');
 
 /**
  * @desc    Create a new transaction
@@ -261,10 +262,118 @@ const deleteTransaction = async (req, res, next) => {
       });
     }
 
+    // Clean up attached receipt file if one exists
+    if (transaction.receiptPublicId) {
+      await deleteReceiptImage(transaction.receiptPublicId);
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Transaction deleted successfully',
       data: {},
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Upload or replace receipt photo for a transaction
+ * @route   POST /api/v1/transactions/:id/receipt
+ * @access  Private (JWT)
+ */
+const uploadReceipt = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid ID format for transaction: '${id}'`,
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No receipt image file provided. Please attach an image under the "receipt" field.',
+      });
+    }
+
+    const transaction = await Transaction.findOne({
+      _id: id,
+      userId: req.user._id,
+    });
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: `Transaction not found with id: ${id}`,
+      });
+    }
+
+    // Remove old receipt if exists
+    if (transaction.receiptPublicId) {
+      await deleteReceiptImage(transaction.receiptPublicId);
+    }
+
+    // Upload new receipt photo
+    const result = await uploadReceiptImage(req.file, req);
+
+    transaction.receiptUrl = result.receiptUrl;
+    transaction.receiptPublicId = result.receiptPublicId;
+    await transaction.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Receipt photo uploaded successfully',
+      data: transaction,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Remove receipt photo from a transaction
+ * @route   DELETE /api/v1/transactions/:id/receipt
+ * @access  Private (JWT)
+ */
+const removeReceipt = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid ID format for transaction: '${id}'`,
+      });
+    }
+
+    const transaction = await Transaction.findOne({
+      _id: id,
+      userId: req.user._id,
+    });
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: `Transaction not found with id: ${id}`,
+      });
+    }
+
+    if (transaction.receiptPublicId) {
+      await deleteReceiptImage(transaction.receiptPublicId);
+    }
+
+    transaction.receiptUrl = null;
+    transaction.receiptPublicId = null;
+    await transaction.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Receipt photo removed successfully',
+      data: transaction,
     });
   } catch (error) {
     next(error);
@@ -277,4 +386,6 @@ module.exports = {
   getTransactionById,
   updateTransaction,
   deleteTransaction,
+  uploadReceipt,
+  removeReceipt,
 };

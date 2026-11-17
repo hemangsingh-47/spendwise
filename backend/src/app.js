@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const { notFoundHandler, errorHandler } = require('./middleware/errorMiddleware');
@@ -6,6 +7,7 @@ const { notFoundHandler, errorHandler } = require('./middleware/errorMiddleware'
 const transactionRoutes = require('./routes/transactionRoutes');
 const authRoutes = require('./routes/authRoutes');
 const budgetRoutes = require('./routes/budgetRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 const app = express();
 
@@ -16,6 +18,9 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static receipt uploads (Phase 10)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 /**
  * Health Check Endpoint
@@ -35,6 +40,7 @@ app.get('/api/v1/health', (req, res) => {
 app.use('/api/v1/transactions', transactionRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/budgets', budgetRoutes);
+app.use('/api/v1/analytics', analyticsRoutes);
 
 // Error Handling Middlewares
 app.use(notFoundHandler);

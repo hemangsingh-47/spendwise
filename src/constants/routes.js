@@ -8,11 +8,12 @@ export const ROUTES = {
   REGISTER: 'Register',
   FORGOT_PASSWORD: 'ForgotPassword',
 
-  // Main App Tabs (Phase 4)
+  // Main App Tabs (Phases 4, 9 & 10)
   MAIN_APP: 'MainApp',
   DASHBOARD_TAB: 'Home',
   TRANSACTIONS_TAB: 'Transactions',
   BUDGETS_TAB: 'Budgets',
+  ANALYTICS_TAB: 'Analytics',
   PROFILE_TAB: 'Profile',
 
   // Transaction Stack Routes (Phase 5)

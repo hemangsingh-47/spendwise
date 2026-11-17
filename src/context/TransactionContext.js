@@ -135,6 +135,44 @@ export const TransactionProvider = ({ children }) => {
   };
 
   /**
+   * Upload receipt photo for a transaction (POST /api/v1/transactions/:id/receipt)
+   */
+  const uploadReceipt = async (id, fileUri) => {
+    try {
+      const result = await transactionService.uploadReceipt(id, fileUri);
+      if (result.success && result.data) {
+        const normalized = normalizeTx(result.data);
+        setTransactions((prev) =>
+          prev.map((item) => (item.id === id ? normalized : item))
+        );
+        return normalized;
+      }
+    } catch (err) {
+      console.error('[TransactionContext] Upload receipt failed:', err.message);
+      throw err;
+    }
+  };
+
+  /**
+   * Delete receipt photo from a transaction (DELETE /api/v1/transactions/:id/receipt)
+   */
+  const deleteReceipt = async (id) => {
+    try {
+      const result = await transactionService.deleteReceipt(id);
+      if (result.success && result.data) {
+        const normalized = normalizeTx(result.data);
+        setTransactions((prev) =>
+          prev.map((item) => (item.id === id ? normalized : item))
+        );
+        return normalized;
+      }
+    } catch (err) {
+      console.error('[TransactionContext] Delete receipt failed:', err.message);
+      throw err;
+    }
+  };
+
+  /**
    * Get single transaction by ID from current local state
    */
   const getTransactionById = (id) => {
@@ -176,6 +214,8 @@ export const TransactionProvider = ({ children }) => {
     addTransaction,
     editTransaction,
     deleteTransaction,
+    uploadReceipt,
+    deleteReceipt,
     getTransactionById,
     totalIncome: summary.totalIncome,
     totalExpenses: summary.totalExpenses,

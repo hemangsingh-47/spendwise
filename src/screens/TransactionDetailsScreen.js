@@ -1,5 +1,16 @@
-import React from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  TouchableOpacity,
+  Image,
+  Modal,
+  ActivityIndicator,
+} from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -9,7 +20,10 @@ import { ROUTES } from '../constants/routes';
 
 export default function TransactionDetailsScreen({ route, navigation }) {
   const { transactionId } = route.params || {};
-  const { getTransactionById, deleteTransaction } = useTransactions();
+  const { getTransactionById, deleteTransaction, uploadReceipt, deleteReceipt } = useTransactions();
+
+  const [isUploading, setIsUploading] = useState(false);
+  const [fullImageModal, setFullImageModal] = useState(false);
 
   const transaction = getTransactionById(transactionId);
 
@@ -30,6 +44,88 @@ export default function TransactionDetailsScreen({ route, navigation }) {
   }
 
   const isIncome = transaction.type === 'income';
+
+  const handleAttachReceipt = () => {
+    Alert.alert(
+      'Attach Receipt Photo',
+      'Choose an option:',
+      [
+        {
+          text: 'Take Photo',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission Denied', 'Camera permission is required.');
+                return;
+              }
+              const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
+              if (!result.canceled && result.assets[0]?.uri) {
+                await processUpload(result.assets[0].uri);
+              }
+            } catch (err) {
+              Alert.alert('Error', err.message);
+            }
+          },
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission Denied', 'Gallery permission is required.');
+                return;
+              }
+              const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.8 });
+              if (!result.canceled && result.assets[0]?.uri) {
+                await processUpload(result.assets[0].uri);
+              }
+            } catch (err) {
+              Alert.alert('Error', err.message);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const processUpload = async (uri) => {
+    try {
+      setIsUploading(true);
+      await uploadReceipt(transaction.id, uri);
+      Alert.alert('Success', 'Receipt photo uploaded successfully!');
+    } catch (err) {
+      Alert.alert('Upload Failed', err.message || 'Could not upload receipt');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemoveReceipt = () => {
+    Alert.alert(
+      'Remove Receipt',
+      'Are you sure you want to delete this receipt image?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsUploading(true);
+              await deleteReceipt(transaction.id);
+            } catch (err) {
+              Alert.alert('Error', err.message);
+            } finally {
+              setIsUploading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleDelete = () => {
     Alert.alert(
@@ -106,6 +202,64 @@ export default function TransactionDetailsScreen({ route, navigation }) {
           <Text style={[styles.detailValue, styles.idText]}>{transaction.id}</Text>
         </View>
 
+        {/* Receipt Attachment Section (Phase 10) */}
+        <View style={styles.receiptSectionWrap}>
+          <Text style={styles.detailLabel}>RECEIPT PHOTO</Text>
+          {transaction.receiptUrl ? (
+            <View style={styles.receiptContainer}>
+              <TouchableOpacity
+                onPress={() => setFullImageModal(true)}
+                activeOpacity={0.8}
+                style={styles.imageWrapper}
+              >
+                <Image
+                  source={{ uri: transaction.receiptUrl }}
+                  style={styles.receiptImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.viewBadge}>
+                  <Ionicons name="expand-outline" size={12} color={colors.white} />
+                  <Text style={styles.viewBadgeText}>Tap to enlarge</Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles.receiptBtnRow}>
+                <TouchableOpacity
+                  style={styles.receiptSmallBtn}
+                  onPress={handleAttachReceipt}
+                  disabled={isUploading}
+                >
+                  <Text style={styles.receiptSmallBtnText}>Change Photo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.receiptSmallBtn, { borderColor: colors.border }]}
+                  onPress={handleRemoveReceipt}
+                  disabled={isUploading}
+                >
+                  <Text style={[styles.receiptSmallBtnText, { color: colors.error }]}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.noReceiptBox}
+              onPress={handleAttachReceipt}
+              disabled={isUploading}
+              activeOpacity={0.7}
+            >
+              {isUploading ? (
+                <ActivityIndicator size="small" color={colors.black} />
+              ) : (
+                <>
+                  <Ionicons name="document-attach-outline" size={20} color={colors.grey} />
+                  <Text style={styles.noReceiptText}>No receipt attached</Text>
+                  <Text style={styles.noReceiptSub}>Tap to attach photo (Camera / Gallery)</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
         <View style={styles.buttonSpacing} />
 
         {/* Edit Button */}
@@ -129,6 +283,30 @@ export default function TransactionDetailsScreen({ route, navigation }) {
           style={[styles.actionButton, styles.deleteButton]}
         />
       </Card>
+
+      {/* Full-screen Receipt Image Modal */}
+      <Modal
+        visible={fullImageModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFullImageModal(false)}
+      >
+        <View style={styles.modalBg}>
+          <TouchableOpacity
+            style={styles.modalCloseBtn}
+            onPress={() => setFullImageModal(false)}
+          >
+            <Ionicons name="close-circle" size={32} color={colors.white} />
+          </TouchableOpacity>
+          {transaction.receiptUrl && (
+            <Image
+              source={{ uri: transaction.receiptUrl }}
+              style={styles.modalFullImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -239,5 +417,102 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     width: '100%',
+  },
+  receiptSectionWrap: {
+    width: '100%',
+    marginVertical: spacing.md,
+  },
+  receiptContainer: {
+    marginTop: spacing.xs,
+    alignItems: 'center',
+  },
+  imageWrapper: {
+    width: '100%',
+    height: 180,
+    borderRadius: borderRadius.medium,
+    overflow: 'hidden',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    position: 'relative',
+  },
+  receiptImage: {
+    width: '100%',
+    height: '100%',
+  },
+  viewBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: borderRadius.small,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewBadgeText: {
+    fontSize: 10,
+    color: colors.white,
+    fontWeight: fontWeights.medium,
+  },
+  receiptBtnRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  receiptSmallBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: borderRadius.small,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  receiptSmallBtnText: {
+    fontSize: 11,
+    fontWeight: fontWeights.medium,
+    color: colors.dark,
+  },
+  noReceiptBox: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    borderRadius: borderRadius.medium,
+    backgroundColor: colors.card,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.xs,
+  },
+  noReceiptText: {
+    fontSize: 13,
+    fontWeight: fontWeights.semibold,
+    color: colors.dark,
+    marginTop: 4,
+  },
+  noReceiptSub: {
+    fontSize: 11,
+    color: colors.grey,
+    marginTop: 2,
+  },
+  modalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+  },
+  modalFullImage: {
+    width: '100%',
+    height: '80%',
   },
 });

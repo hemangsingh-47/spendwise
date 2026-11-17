@@ -53,6 +53,15 @@ const transactionSchema = new mongoose.Schema(
       default: 'UPI',
       trim: true,
     },
+    // Optional Receipt Photo Metadata (Phase 10)
+    receiptUrl: {
+      type: String,
+      default: null,
+    },
+    receiptPublicId: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,

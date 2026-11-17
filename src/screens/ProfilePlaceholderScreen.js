@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Alert, TouchableOpacity, Switch } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -7,6 +7,7 @@ import { Input } from '../components/Input';
 import { colors, spacing, borderRadius, fontWeights, layout } from '../styles/theme';
 import { useAuth } from '../context/AuthContext';
 import { ROUTES } from '../constants/routes';
+import notificationService from '../services/notificationService';
 
 export default function ProfilePlaceholderScreen({ navigation }) {
   const { user, logout, updateProfile, changePassword } = useAuth();
@@ -22,6 +23,18 @@ export default function ProfilePlaceholderScreen({ navigation }) {
   const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [isSavingPass, setIsSavingPass] = useState(false);
+
+  // Notification Preferences (Phase 10)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  useEffect(() => {
+    notificationService.isEnabled().then(setNotificationsEnabled);
+  }, []);
+
+  const handleToggleNotifications = async (val) => {
+    setNotificationsEnabled(val);
+    await notificationService.setEnabled(val);
+  };
 
   // Avatar initials
   const initials = (user?.name || 'SW')
@@ -184,6 +197,25 @@ export default function ProfilePlaceholderScreen({ navigation }) {
         ) : null}
       </Card>
 
+      {/* Notification Preferences (Phase 10) */}
+      <Card variant="white" style={styles.card}>
+        <Text style={styles.sectionTitle}>Notifications & Alerts</Text>
+        <View style={styles.notifRow}>
+          <View style={styles.notifTextWrap}>
+            <Text style={styles.notifTitle}>Budget Warning Alerts</Text>
+            <Text style={styles.notifSubtitle}>
+              Receive local notifications when category spending reaches 80% or exceeds 100%.
+            </Text>
+          </View>
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={handleToggleNotifications}
+            trackColor={{ false: colors.border, true: colors.black }}
+            thumbColor={colors.white}
+          />
+        </View>
+      </Card>
+
       {/* Developer & Viva Shortcuts */}
       <Card variant="card" style={styles.card}>
         <Text style={styles.sectionTitle}>Evaluation & Tools</Text>
@@ -305,5 +337,27 @@ const styles = StyleSheet.create({
   actionBtn: {
     width: '100%',
     marginBottom: spacing.sm,
+  },
+  notifRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingVertical: spacing.sm,
+    gap: spacing.md,
+  },
+  notifTextWrap: {
+    flex: 1,
+  },
+  notifTitle: {
+    fontSize: 14,
+    fontWeight: fontWeights.semibold,
+    color: colors.black,
+    marginBottom: 2,
+  },
+  notifSubtitle: {
+    fontSize: 12,
+    color: colors.grey,
+    lineHeight: 16,
   },
 });
