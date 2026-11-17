@@ -105,95 +105,178 @@ backend/
 │   ├── config/db.js                  # Mongoose MongoDB connection pool
 │   ├── models/                       # Mongoose Schemas & Data validation
 │   │   ├── User.js                   # Bcrypt hashed credentials, currency, matchPassword
-│   │   ├── Transaction.js            # Income/Expense amounts, categories, user ref
-│   │   └── Budget.js                 # Monthly category limit targets
+│   │   ├── Transaction.js            # Income/Expense amounts, categories, receiptUrl, receiptPublicId
+│   │   └── Budget.js                 # Monthly category limit targets & compound unique index
 │   ├── controllers/                  # Business logic & request handling
 │   │   ├── authController.js         # Register, Login, getMe, updateProfile, changePassword
-│   │   └── transactionController.js  # Scoped CRUD (req.user._id), filters & pagination
+│   │   ├── transactionController.js  # Scoped CRUD (req.user._id), receipt upload & removal
+│   │   ├── budgetController.js       # Budget CRUD & real-time MongoDB spending calculations
+│   │   └── analyticsController.js    # Financial summaries, 6-month trends & category breakdown
 │   ├── routes/                       # Express router endpoints
 │   │   ├── authRoutes.js             # /api/v1/auth (public & protected)
-│   │   ├── transactionRoutes.js      # /api/v1/transactions (protected by authMiddleware)
-│   │   └── budgetRoutes.js           # Placeholder for Phase 9
+│   │   ├── transactionRoutes.js      # /api/v1/transactions & /:id/receipt (protected)
+│   │   ├── budgetRoutes.js           # /api/v1/budgets & /summary (protected)
+│   │   └── analyticsRoutes.js        # /api/v1/analytics/summary, /monthly, /categories (protected)
 │   ├── middleware/                   # Express middlewares
 │   │   ├── authMiddleware.js         # JWT Bearer token verification & req.user binding
+│   │   ├── uploadMiddleware.js       # Multer multipart form-data parser & 5MB file validator
 │   │   └── errorMiddleware.js        # 404 & Centralized error handler
 │   ├── utils/
-│   │   └── generateToken.js          # Signs HMAC SHA-256 JWT tokens with expiry
-│   ├── app.js                        # Express app & middleware configuration
-│   └── server.js                     # HTTP server listener & graceful shutdown
+│   │   ├── generateToken.js          # Signs HMAC SHA-256 JWT tokens with expiry
+│   │   └── receiptUploader.js        # Cloudinary uploader with local disk fallback
+│   ├── app.js                        # Express app, static /uploads route & middlewares
+│   └── server.js                     # HTTP server listener (0.0.0.0) & graceful shutdown
 └── test/
     ├── api.test.js                   # Automated transaction CRUD tests (11/11 passed)
-    └── auth.test.js                  # Automated auth & security tests (14/14 passed)
+    ├── auth.test.js                  # Automated auth & security tests (14/14 passed)
+    ├── budget.test.js                # Automated budget management tests (15/15 passed)
+    └── analytics.test.js             # Automated analytics & receipt tests (8/8 passed)
 ```
 
 ---
 
-## 6. Frontend Networking & State Architecture (Phase 8)
+## 6. Frontend Networking, State & Native Architecture (Phases 8–10)
 
-The frontend integrates a modular 3-tier networking and state pipeline:
+The frontend integrates a modular 4-tier networking, state, and native features pipeline:
 
 ```text
 src/
 ├── constants/
-│   └── api.js                       # API_BASE_URL (platform specific) & STORAGE_KEYS
+│   ├── api.js                       # API_BASE_URL (Metro auto-detect / LAN IP) & STORAGE_KEYS
+│   └── routes.js                    # ROUTES: Home, Transactions, Budgets, Analytics, Profile
+├── components/
+│   └── charts/
+│       ├── MonthlyBarChart.js       # 6-Month Income vs Expense comparison bar chart
+│       └── CategoryPieChart.js      # SVG Category Donut chart & itemized percentage list
 ├── services/
 │   ├── api.js                       # Axios instance with request/response interceptors
 │   ├── authService.js               # Auth HTTP endpoints & token memory cache
-│   └── transactionService.js        # Transaction CRUD endpoints
-└── context/
-    ├── AuthContext.js               # Authentication state, login/register/logout, AsyncStorage
-    └── TransactionContext.js        # Transactions state, live MongoDB sync, derived metrics
-```
-
-### Full End-to-End Data & Security Flow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant UI as React Native UI
-    participant AuthCtx as AuthContext / AsyncStorage
-    participant TxCtx as TransactionContext
-    participant ApiClient as Axios Service (src/services/api.js)
-    participant AuthMid as authMiddleware (backend)
-    participant Ctrl as Express Controller
-    participant DB as MongoDB (Mongoose)
-
-    Note over UI,AuthCtx: 1. Authentication Flow
-    UI->>AuthCtx: login(email, password)
-    AuthCtx->>ApiClient: POST /api/v1/auth/login
-    ApiClient->>Ctrl: authController.login()
-    Ctrl->>DB: User.findOne({ email }).select('+password')
-    DB-->>Ctrl: User doc with bcrypt hash
-    Ctrl->>Ctrl: user.matchPassword(password)
-    Ctrl-->>ApiClient: 200 OK + JWT Token + User profile
-    ApiClient-->>AuthCtx: Token & User
-    AuthCtx->>AuthCtx: AsyncStorage.setItem('@spendwise_token')
-    AuthCtx-->>UI: Set isAuthenticated = true (Navigates to MainApp)
-
-    Note over UI,DB: 2. Protected Transaction Operations
-    UI->>TxCtx: createTransaction(newTxData)
-    TxCtx->>ApiClient: POST /api/v1/transactions
-    ApiClient->>ApiClient: Request Interceptor: Attach Authorization: Bearer <JWT>
-    ApiClient->>AuthMid: HTTP Request + Bearer JWT
-    AuthMid->>AuthMid: jwt.verify(token, JWT_SECRET)
-    AuthMid->>DB: User.findById(decoded.id)
-    DB-->>AuthMid: req.user
-    AuthMid->>Ctrl: next()
-    Ctrl->>DB: Transaction.create({ ...data, userId: req.user._id })
-    DB-->>Ctrl: Saved Transaction document
-    Ctrl-->>ApiClient: 201 Created (JSON record)
-    ApiClient-->>TxCtx: Normalized Transaction
-    TxCtx->>TxCtx: Recompute Balance, Income, Expense via useMemo
-    TxCtx-->>UI: Live UI update without full reload
+│   ├── transactionService.js        # Transaction CRUD & multipart receipt photo upload
+│   ├── budgetService.js             # Budget CRUD & monthly summary endpoints
+│   ├── analyticsService.js          # Financial KPIs, 6-month cashflow trends & categories
+│   └── notificationService.js       # Expo Notifications & duplicate alert suppression
+├── context/
+│   ├── AuthContext.js               # Authentication state, login/register/logout, AsyncStorage
+│   └── TransactionContext.js        # Transactions state, live MongoDB sync, derived metrics
+└── screens/
+    ├── DashboardScreen.js           # Balance, summary, recent transactions, monthly budget widget
+    ├── TransactionsScreen.js        # FlatList, search, filter chips, pull-to-refresh
+    ├── BudgetsScreen.js             # Monthly overview card, category budget cards, progress bars
+    ├── AnalyticsScreen.js           # Net savings KPI, 6-month trend chart, category donut chart
+    ├── AddTransactionScreen.js      # Form validation, receipt camera/gallery, budget alert triggers
+    ├── EditTransactionScreen.js     # Update record, budget alert triggers
+    ├── TransactionDetailsScreen.js  # Details view, receipt preview with pinch modal, delete
+    └── ProfilePlaceholderScreen.js  # Profile view/edit, password change, notification toggle, sign out
 ```
 
 ---
 
-## 7. Scope Boundaries Summary
+## 7. End-to-End Data & Flow Diagrams
+
+### Flow A: Budget Screen Data Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as BudgetsScreen (React Native)
+    participant Svc as budgetService (Axios)
+    participant AuthMid as authMiddleware (backend)
+    participant Ctrl as budgetController
+    participant DB as MongoDB (Budgets & Transactions)
+
+    UI->>Svc: getBudgets(month, year)
+    Svc->>AuthMid: GET /api/v1/budgets?month=11&year=2026 (Bearer JWT)
+    AuthMid->>AuthMid: jwt.verify(token) -> req.user
+    AuthMid->>Ctrl: getBudgets()
+    Ctrl->>DB: Budget.find({ userId: req.user._id, month, year })
+    DB-->>Ctrl: Budgets array
+    loop For each budget
+        Ctrl->>DB: Transaction.find({ userId, type: 'expense', category, month, year })
+        DB-->>Ctrl: Matching expense transactions
+        Ctrl->>Ctrl: Calculate spent, remaining = limit - spent, percentage, status
+    end
+    Ctrl-->>Svc: 200 OK (Enriched Budgets with progress & status)
+    Svc-->>UI: Display overview card & category progress bars
+```
+
+### Flow B: Analytics Screen Data Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as AnalyticsScreen (React Native)
+    participant Svc as analyticsService (Axios)
+    participant Ctrl as analyticsController
+    participant DB as MongoDB Aggregation
+
+    UI->>Svc: getSummary() + getMonthlyTrend() + getCategoryBreakdown()
+    Svc->>Ctrl: GET /api/v1/analytics/summary & /monthly & /categories
+    Ctrl->>DB: Transaction.aggregate([ $match: { userId }, $group: { income, expense } ])
+    DB-->>Ctrl: Grouped totals
+    Ctrl->>DB: Transaction.aggregate([ $match: last 6 months, $group by month & type ])
+    DB-->>Ctrl: 6-month historical totals
+    Ctrl->>DB: Transaction.aggregate([ $match: expenses, $group by category ])
+    DB-->>Ctrl: Sorted category totals
+    Ctrl-->>Svc: Formatted analytics JSON payloads
+    Svc-->>UI: Render Net Savings KPI, MonthlyBarChart & CategoryPieChart
+```
+
+### Flow C: Receipt Photo Upload Pipeline
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as AddTransaction / TransactionDetails
+    participant Picker as Expo ImagePicker
+    participant Svc as transactionService (Axios)
+    participant UpMid as uploadMiddleware (Multer)
+    participant Ctrl as transactionController
+    participant Cloud as Cloudinary / Local Disk
+
+    UI->>Picker: launchCameraAsync() / launchImageLibraryAsync()
+    Picker-->>UI: Selected image URI
+    UI->>Svc: uploadReceipt(transactionId, imageUri)
+    Svc->>UpMid: POST /api/v1/transactions/:id/receipt (multipart/form-data)
+    UpMid->>UpMid: Validate 5MB limit & mime type (jpeg/png/webp)
+    UpMid->>Ctrl: uploadReceipt(req.file)
+    Ctrl->>Cloud: uploadReceiptImage(file)
+    Cloud-->>Ctrl: receiptUrl & receiptPublicId
+    Ctrl->>Ctrl: Transaction.findByIdAndUpdate(id, { receiptUrl, receiptPublicId })
+    Ctrl-->>Svc: 200 OK + Updated Transaction
+    Svc-->>UI: Update local state & display receipt preview
+```
+
+### Flow D: Local Budget Warning Notification Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as Student User
+    participant Screen as AddTransactionScreen
+    participant TxSvc as transactionService
+    participant NotifSvc as notificationService
+    participant Storage as AsyncStorage (@spendwise_notified_alerts)
+    participant OS as Expo Notifications System
+
+    User->>Screen: Enters expense (₹1,500 under Food)
+    Screen->>TxSvc: createTransaction() -> Saved to MongoDB
+    Screen->>NotifSvc: evaluateBudgetThreshold(category, spent, limit, month, year)
+    NotifSvc->>NotifSvc: Calculate spending % (e.g. 85%)
+    NotifSvc->>Storage: Check if '2026_11_food_80' already alerted
+    alt Alert not sent yet
+        NotifSvc->>OS: scheduleNotificationAsync({ title: 'Budget Alert: Food', body: '...' })
+        OS-->>User: Display native notification banner
+        NotifSvc->>Storage: Save '2026_11_food_80' = timestamp
+    else Alert already sent
+        NotifSvc->>NotifSvc: Suppress duplicate notification
+    end
+```
+
+---
+
+## 8. Scope Boundaries Summary
 
 - **Phases 1–3:** Complete Authentication UI & Design System.
 - **Phases 4–5:** Main Tab Navigation, Dashboard, Transaction List with Search & Filters, Add/Edit/Delete CRUD forms, and React Context state.
 - **Phase 6:** Express.js REST API, MongoDB connection, User/Transaction/Budget Mongoose models, and verified transaction endpoints.
 - **Phase 7:** Backend Authentication & Security: bcrypt password hashing, JWT token generation, `authMiddleware`, `authRoutes`, user isolation (preventing cross-user access), and 14/14 automated tests.
 - **Phase 8:** Mobile API & Context Integration: Axios client with Bearer token interceptor, AsyncStorage persistent session restore, `AuthContext`, `TransactionContext` live MongoDB sync, pull-to-refresh on FlatLists, and full CRUD screen wiring.
-- **Phases 9–12 (Future):** Budget management APIs, analytics/charts, offline SQLite caching, and production build/deployment.
+- **Phase 9:** Advanced Budget Management: MongoDB budget CRUD endpoints, real-time monthly expense matching, 80% & 100% status thresholds, `BudgetsScreen` with overview card and category progress bars, and 15/15 automated tests.
+- **Phase 10:** Analytics & Native Features: MongoDB aggregation analytics (`/summary`, `/monthly`, `/categories`), 6-month cashflow trend bar chart, category donut chart, receipt photo capture and upload with Cloudinary/local fallback, local budget threshold notifications with duplicate prevention, and 8/8 automated tests.
+- **Phases 11–12 (Future):** Production polish, final packaging, and APK deployment (Strictly Not Started).

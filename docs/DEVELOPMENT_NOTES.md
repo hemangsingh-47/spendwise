@@ -663,3 +663,201 @@ if (password !== confirmPassword) {
 **Answer:** By default, Mongoose may hang for up to 30 seconds trying to reach an unreachable MongoDB server. Setting `serverSelectionTimeoutMS: 5000` forces Mongoose to fail fast after 5 seconds, providing an immediate and actionable error message in the console rather than causing the application to hang indefinitely.
 
 ---
+
+# PHASE 9: BUDGET MANAGEMENT
+
+## 1. What We Built & Configured
+- **Mongoose Budget Model (`backend/src/models/Budget.js`):**
+  - Fields: `userId`, `category`, `limit`, `month` (1-12), `year` (>= 2020).
+  - Unique compound index: `{ userId: 1, category: 1, month: 1, year: 1 }` to prevent duplicate category budgets per user in the same month.
+- **Budget REST Endpoints (`backend/src/routes/budgetRoutes.js`, `backend/src/controllers/budgetController.js`):**
+  - `POST /api/v1/budgets`: Creates a category budget with validation (`limit > 0`, duplicate check).
+  - `GET /api/v1/budgets?month=11&year=2026`: Returns all budgets enriched with live MongoDB spending calculations.
+  - `GET /api/v1/budgets/summary?month=11&year=2026`: Returns overall monthly budget, total spent, remaining, and percentage.
+  - `GET /api/v1/budgets/:id`: Retrieves single budget with live calculation.
+  - `PUT /api/v1/budgets/:id`: Updates budget limit.
+  - `DELETE /api/v1/budgets/:id`: Deletes budget document.
+- **Automated Budget Test Suite (`backend/test/budget.test.js`):**
+  - 15/15 tests passing (creation, duplicate rejection, negative limit check, spent calculation, income exclusion, month boundary isolation, 80% warning, 100% exceeded, user isolation).
+- **Frontend Budget Service (`src/services/budgetService.js`):**
+  - Axios methods for all CRUD and summary endpoints.
+- **Budgets Tab Screen (`src/screens/BudgetsScreen.js`):**
+  - Replaces `BudgetsPlaceholderScreen`.
+  - Monthly budget overview card (Total budget, Spent, Remaining, Overall progress bar, Status badge).
+  - Category-wise cards with progress bars, left/over amount, edit and delete buttons.
+  - Modal form for creating budgets with category pills.
+  - Modal for editing limits.
+  - Pull-to-refresh (`RefreshControl`).
+  - Integrated into `DashboardScreen` monthly overview.
+
+---
+
+## 2. Core Concepts Explained (Hinglish Explanation)
+
+### A. What is Budget Management?
+- **English:** Budget management is the financial discipline of allocating a specific maximum amount of money that can be spent on various categories (like Food, Rent, Books) within a given timeframe (monthly).
+- **Hinglish:** Budget management ka matlab hai apne expenses par pehle se boundary (limit) lagana. Jaise agar student mahine me Food par ₹5,000 se zyada kharch nahi karna chahta, toh wo Food ka ₹5,000 ka budget set karta hai. App har kharch ko track karti hai aur limit cross hone se pehle alert karti hai.
+
+### B. How does MongoDB calculate monthly spending dynamically?
+- **English:** Instead of storing stale spending numbers in the budget document, the backend queries the `transactions` collection for expenses matching the `userId`, `category`, and dates falling between the first and last day of the selected month:
+  `Transaction.find({ userId, type: 'expense', category, date: { $gte: startDate, $lte: endDate } })`.
+- **Hinglish:** Budget document me spending hardcode nahi rehti. Jab bhi budget fetch hota hai, backend MongoDB me us user ke saare 'expense' type wale transactions dhoondhta hai jo us category aur us month ke date range me aate hain. Unka sum karke live `spent` calculate karta hai. Agar koi puraana transaction delete ya edit hota hai, toh budget automatic update ho jata hai!
+
+### C. How is Remaining Budget and Spending Percentage calculated?
+- **Formula:**
+  $$\text{Remaining Budget} = \text{Budget Limit} - \text{Total Spent}$$
+  $$\text{Spending Percentage} = \left(\frac{\text{Total Spent}}{\text{Budget Limit}}\right) \times 100$$
+- **Hinglish:**
+  - Agar Food Limit = ₹6,000 aur Spent = ₹2,500 hai:
+    Remaining = $6000 - 2500 = ₹3,500$.
+    Percentage = $(2500 / 6000) \times 100 = 42\%$.
+  - Agar Budget limit 0 ho, toh division-by-zero error se bachne ke liye code me check rehta hai (`limit > 0 ? (spent / limit) * 100 : 0`).
+
+### D. How does duplicate budget prevention work?
+- **English:** SpendWise uses a dual-layer defense:
+  1. *Database Layer:* A unique compound index in Mongoose: `budgetSchema.index({ userId: 1, category: 1, month: 1, year: 1 }, { unique: true })`.
+  2. *Application Layer:* `Budget.findOne({ userId, category, month, year })` checks beforehand and returns a friendly `400 Bad Request` suggesting the user edit the existing limit instead.
+- **Hinglish:** Ek hi student same month me "Food" ke do alag budget na bana le, isliye MongoDB me compound unique index laga hai. Agar user dobara Food ka budget banane ki koshish karega, toh server saaf bol dega ki is category ka budget pehle se maujood hai, aap ise edit kar sakte hain.
+
+### E. How do Budget Warning Thresholds (80% and 100%) work?
+- **English:**
+  - `percentage < 80%`: Normal status (black/neutral progress bar).
+  - `80% <= percentage < 100%`: Warning status (amber badge "Warning", alerting user they are close to limit).
+  - `percentage >= 100%`: Exceeded status (red badge "Exceeded", indicating student has overspent).
+- **Hinglish:**
+  - Jab kharch 80% se kam ho, toh sab "Normal" rehta hai.
+  - Jab kharch 80% cross hota hai (jaise ₹5,000 me se ₹4,000 kharch ho gaye), toh app warning status aur notification alert deti hai taaki student sambhal jaye.
+  - Jab 100% cross ho jaye (budget se zyada kharch), toh card par "Exceeded" ka red alert banner show hota hai.
+
+---
+
+# PHASE 10: ANALYTICS & NATIVE FEATURES
+
+## 1. What We Built & Configured
+- **Backend Analytics Endpoints (`backend/src/routes/analyticsRoutes.js`, `backend/src/controllers/analyticsController.js`):**
+  - `GET /api/v1/analytics/summary`: Returns total income, total expenses, net savings, savings rate %, and month-over-month comparison.
+  - `GET /api/v1/analytics/monthly`: Returns 6-month historical income vs expense trends using timezone-aware MongoDB aggregation.
+  - `GET /api/v1/analytics/categories`: Returns expense totals grouped by category with dynamic percentage calculation.
+- **Backend Receipt Upload Pipeline (`backend/src/middleware/uploadMiddleware.js`, `backend/src/utils/receiptUploader.js`):**
+  - Integrated `multer` for multipart form-data parsing with a 5MB limit and image MIME-type validation.
+  - Hybrid storage architecture: uploads to Cloudinary if credentials are provided in `.env`, or stores safely on local disk (`backend/uploads/receipts`) served via Express static endpoint.
+  - `POST /api/v1/transactions/:id/receipt`: Uploads/replaces receipt image.
+  - `DELETE /api/v1/transactions/:id/receipt`: Deletes receipt image from storage.
+- **Local Notification Service (`src/services/notificationService.js`):**
+  - Integrated `expo-notifications`.
+  - Handles permission requests and user preference persistence in `AsyncStorage`.
+  - Triggers 80% and 100% budget threshold alerts when expenses are recorded.
+  - Duplicate prevention mechanism: records `${year}_${month}_${category}_${threshold}` keys in AsyncStorage to prevent repeat notifications.
+- **Native Chart Components (`src/components/charts/`):**
+  - `MonthlyBarChart.js`: Responsive 6-month cashflow comparison bar chart.
+  - `CategoryPieChart.js`: SVG Donut chart and itemized percentage breakdown list using `react-native-svg`.
+- **Analytics Tab Screen (`src/screens/AnalyticsScreen.js`):**
+  - KPI summary cards (Net Savings, Inflow, Outflow, Savings Rate).
+  - Month navigation bar (Prev/Next month).
+  - Month-over-month comparison card.
+  - 6-month trend bar chart.
+  - Category donut distribution chart.
+- **Screens Enhanced with Receipts & Native Features:**
+  - `AddTransactionScreen.js`: Camera & Gallery image picker with preview and budget alert check.
+  - `TransactionDetailsScreen.js`: Receipt photo display with tap-to-enlarge full-screen modal and remove/replace buttons.
+  - `ProfilePlaceholderScreen.js`: Notification preferences switch.
+  - `MainTabNavigator.js`: 5th tab for Analytics added.
+
+---
+
+## 2. Core Concepts Explained (Hinglish Explanation)
+
+### A. What is Data Analytics in SpendWise?
+- **English:** Data analytics transforms raw transaction logs into actionable financial insights (e.g. savings rates, monthly cashflow trajectory, and spending concentration by category).
+- **Hinglish:** Sirf transactions ki list dekhne se yeh samajh nahi aata ki paisa kahan ja raha hai. Analytics data ko process karke graphical charts aur numbers (jaise Savings Percentage, 6-Month Trend, Category Pie) me badalti hai jisse student ko pata chalta hai ki wo kitna bacha raha hai.
+
+### B. What is MongoDB Aggregation (`$match`, `$group`, `$sort`)?
+- **English:** The MongoDB aggregation framework is an advanced data-processing pipeline where documents enter a multi-stage pipeline that transforms them into aggregated results:
+  1. `$match`: Filters documents (e.g. only current user's expenses in a date range).
+  2. `$group`: Groups documents by an expression (e.g. `$category` or month/year) and accumulates values using `$sum: '$amount'`.
+  3. `$sort`: Orders the results (e.g. highest spending category first).
+- **Hinglish:** Jab database me hazaaron transactions hon, toh poora data frontend par download karke loop chalana slow hota hai. MongoDB Aggregation pipeline database engine ke andar hi fast grouping aur summing kar deta hai:
+  - `$match`: Pehle sirf hamare user ke records filter karta hai.
+  - `$group`: Har category ke kharch ko ek sath jama (sum) kar deta hai.
+  - `$sort`: Sabse zyada kharch wali category ko top par le aata hai.
+
+### C. How do Native SVG Charts work in React Native?
+- **English:** Mobile screens do not have an HTML5 `<canvas>` or web DOM. `react-native-svg` maps vector graphics (circles, lines, paths) directly to native rendering primitives (CoreGraphics on iOS, Canvas on Android), delivering 60 FPS performance without webview overhead.
+- **Hinglish:** React Native me browser ka canvas ya HTML nahi hota. Hum `react-native-svg` library use karte hain jo native Android aur iOS graphics engine ke through math calculations (circumference, strokeDashoffset) karke smooth vector donut charts banata hai. Isse app bilkul lag-free rehti hai.
+
+### D. How does Expo ImagePicker work?
+- **English:** `expo-image-picker` provides a unified JavaScript API to access device hardware (Camera) or media library (Gallery). It automatically handles Android runtime permissions and returns a local temporary file URI (`file:///.../image.jpg`).
+- **Hinglish:** Mobile phone ka camera ya photo gallery access karne ke liye permission zaroori hoti hai. `expo-image-picker` user se permission maangta hai aur camera ya gallery open karta hai. Photo select hone par phone ka local URI return karta hai jisko hum backend par upload karte hain.
+
+### E. How does Receipt Upload work (Multipart Form-Data & Multer)?
+- **English:** Standard JSON APIs cannot transmit raw binary image data. The mobile client wraps the image in a `FormData` object with `multipart/form-data` encoding. Express uses `multer` middleware to intercept the multipart stream, validate file size (5MB) and MIME types (`image/jpeg`, `image/png`), and store it before passing it to Cloudinary or disk.
+- **Hinglish:** JSON format me sirf text data bheja ja sakta hai, photo nahi. Isliye mobile app `FormData` use karti hai jisme photo binary chunks me divide ho kar jaati hai. Server par `multer` middleware is file ko receive karta hai, check karta hai ki file 5MB se choti hai aur real image hai ya nahi, aur use Cloudinary ya local disk me save karta hai.
+
+### F. What is Cloudinary and why must credentials stay on the Backend?
+- **English:** Cloudinary is a cloud media management service offering image hosting and CDN delivery. The `CLOUDINARY_API_SECRET` must remain strictly on the backend server. Exposing secrets in mobile client bundles allows malicious users to extract credentials and compromise the cloud storage account.
+- **Hinglish:** Cloudinary images ko cloud par secure store karta hai. Cloudinary ka `API_SECRET` humesha backend server ke `.env` me hona chahiye. Agar hum ise mobile app ke JavaScript code me daalenge, toh koi bhi APK ko decompile karke secret chura lega. Isliye app photo pehle hamare Express server ko bhejti hai, aur server Cloudinary ko upload karta hai.
+
+### G. What are Local Notifications and how are duplicates prevented?
+- **English:** Local notifications are system alerts scheduled directly on the device by the application (without requiring remote push servers or Apple/Google APNs). To prevent duplicate spam alerts whenever a user views a screen or records multiple expenses, SpendWise stores a composite unique key (e.g. `2026_11_food_80`) in `AsyncStorage`. If this key already exists for the month, subsequent alerts for that threshold are suppressed.
+- **Hinglish:** Local notifications phone ke operating system ka internal alert system hota hai jiske liye internet ya external push server ki zaroorat nahi hoti. User ko baar-baar alert se pareshan na karne ke liye, jab ek baar 80% ka alert bhej diya jata hai, toh app AsyncStorage me `2026_11_food_80` save kar leti hai. Dobara screen khulne par app check karti hai aur doosra alert nahi bhejti.
+
+---
+
+# VIVA QUESTIONS & ANSWERS (TOP 50 FOR CSE 2ND YEAR VIVA)
+
+*(Questions Q1 to Q35 remain in previous sections. Below are 15 new in-depth questions for Phases 9 & 10)*
+
+### Q36. What is the difference between a Transaction and a Budget in SpendWise?
+**Answer:** A transaction represents an actual historical financial event that has already occurred (money inflow or outflow on a specific date). A budget represents a forward-looking financial target or spending constraint for an entire category over a monthly period. Transactions are summed dynamically to evaluate whether a budget target is being respected.
+
+### Q37. Why are category spending amounts not stored permanently inside the Budget document in MongoDB?
+**Answer:** Storing `spent` inside the budget document would introduce data redundancy and require complex synchronization hooks on every transaction create, update, and delete. Instead, SpendWise calculates spending dynamically by querying matching expense transactions in MongoDB. This guarantees single-source-of-truth accuracy and prevents synchronization bugs.
+
+### Q38. How does the unique compound index in the Budget model prevent duplicate records?
+**Answer:** In `Budget.js`, the schema defines `budgetSchema.index({ userId: 1, category: 1, month: 1, year: 1 }, { unique: true })`. MongoDB enforces that no two documents can have the exact same combination of these four fields. If a user attempts to insert a second budget for "Food" in Month 11 of 2026, the database immediately throws a duplicate key error (code 11000).
+
+### Q39. How do you prevent division-by-zero errors when calculating budget spending percentage?
+**Answer:** In both JavaScript and MongoDB aggregation, if a budget limit or income is zero, dividing by it produces `Infinity` or `NaN`. We guard against this by using conditional ternary operators: `limit > 0 ? Math.round((spent / limit) * 100) : 0`.
+
+### Q40. What are the three status levels used in budget tracking and what do they indicate?
+**Answer:**
+- **Normal (`< 80%`):** Spending is well within safe bounds.
+- **Warning (`80% - 99%`):** Spending has reached 80% or more of the allocated category limit; user is cautioned to slow down.
+- **Exceeded (`>= 100%`):** Spending has surpassed the target limit; alert banner is triggered.
+
+### Q41. What is the MongoDB Aggregation Pipeline and what are its main stages?
+**Answer:** The MongoDB aggregation framework processes data records through a sequential pipeline of transformation stages. Key stages used in SpendWise:
+- `$match`: Filters documents matching specific criteria (like `userId` and date range).
+- `$group`: Groups documents by key attributes (like category or month) and computes aggregate metrics using operators like `$sum`, `$avg`, or `$count`.
+- `$sort`: Orders the accumulated output (e.g. descending by total amount).
+
+### Q42. Why is aggregation performed on the database server instead of the mobile client?
+**Answer:** Processing thousands of raw transaction documents on a mobile device consumes excessive CPU, battery, and mobile data bandwidth. Performing aggregation inside MongoDB leverages database indexing and high-speed BSON scanning, returning only the compact, final summarized numbers to the mobile app.
+
+### Q43. What is the purpose of `multipart/form-data` and why can't images be sent as standard JSON?
+**Answer:** JSON is a text-based format designed for key-value UTF-8 strings. Raw binary files (like JPEG images) contain arbitrary byte sequences that cannot be directly serialized into JSON without heavy Base64 encoding (which inflates file size by ~33%). `multipart/form-data` divides the HTTP payload into distinct boundary-separated parts, allowing binary file streams to be transmitted efficiently.
+
+### Q44. What role does `multer` play in the Express backend?
+**Answer:** Express's default `express.json()` and `express.urlencoded()` body parsers ignore multipart payloads. `multer` is a specialized Node.js middleware that parses incoming `multipart/form-data`, extracts uploaded files, enforces file size limits (5MB in SpendWise), validates MIME types, and writes the file to disk or memory.
+
+### Q45. Why do we store only the `receiptUrl` in MongoDB rather than storing image binary data directly in the database?
+**Answer:** Storing raw binary files (BLOBs) inside MongoDB bloats document sizes, exceeds the 16MB BSON document limit, degrades cache efficiency, and slows down database backups. Best architectural practice is to store image binaries on an external object storage service (like Cloudinary or AWS S3) and store only the lightweight HTTPS URL in MongoDB.
+
+### Q46. What is the difference between local notifications and push notifications?
+**Answer:**
+- **Local Notifications:** Scheduled and displayed entirely on the device by the local mobile operating system without requiring an internet connection or external servers.
+- **Push Notifications:** Sent remotely from a backend server via Apple Push Notification Service (APNs) or Firebase Cloud Messaging (FCM) to reach devices when the app may not be running. SpendWise uses local notifications for fast, offline-friendly budget alerts.
+
+### Q47. How does SpendWise prevent repetitive notification spam when spending exceeds 80%?
+**Answer:** SpendWise computes a unique alert key for each threshold crossing formatted as `${year}_${month}_${category}_${threshold}` (e.g. `2026_11_food_80`) and checks `AsyncStorage`. If an alert has already been fired for this key during the current month, subsequent notifications are suppressed, preventing duplicate notification alerts on every screen re-render or additional expense entry.
+
+### Q48. What is the mathematical concept behind creating a Donut Chart in SVG?
+**Answer:** A Donut Chart circle has a circumference $C = 2 \times \pi \times r$. Using the SVG stroke properties `strokeDasharray` (set to the full circumference) and `strokeDashoffset = C \times (1 - \text{percentage})`, SVG draws only an arc proportional to the category's percentage of total expenses. Each subsequent slice is rotated by the cumulative angle of preceding categories: $\text{Angle} = (\text{cumulativePercent} / 100) \times 360^\circ$.
+
+### Q49. What happens to uploaded receipt photos when a transaction is deleted?
+**Answer:** In `transactionController.deleteTransaction`, before removing the transaction document from MongoDB, the controller checks if `transaction.receiptPublicId` exists. If present, it calls `deleteReceiptImage()`, which permanently deletes the photo from Cloudinary or local disk, preventing orphaned files from consuming storage.
+
+### Q50. Why is timezone handling critical when calculating monthly financial analytics in MongoDB?
+**Answer:** By default, MongoDB stores all dates in UTC (Coordinated Universal Time). In India (IST, UTC+5:30), a transaction recorded on November 1 at 2:00 AM IST has a UTC timestamp of October 31 at 8:30 PM. Without passing `{ timezone: '+05:30' }` to MongoDB's `$year` and `$month` aggregation operators, the database would mistakenly assign the transaction to October instead of November. Passing timezone ensures 100% calendar accuracy.
+
+---
