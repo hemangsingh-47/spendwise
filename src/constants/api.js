@@ -13,7 +13,10 @@ import { Platform, NativeModules } from 'react-native';
  *    - Uses 'localhost:5000'.
  */
 
-// Your computer's current Wi-Fi IPv4 address (from 'ipconfig')
+// Deployed Live Production Backend URL on Render
+export const PRODUCTION_BACKEND_URL = 'https://spendwise-backend-jcr4.onrender.com/api/v1';
+
+// Your computer's current Wi-Fi IPv4 address (from 'ipconfig') for local offline testing
 export const DEV_MACHINE_IP = '192.168.1.6';
 const PORT = 5000;
 
@@ -23,7 +26,12 @@ const resolveApiBaseUrl = () => {
     return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '');
   }
 
-  // 2. Auto-detect host IP from Metro bundle URL when running inside Expo Go
+  // 2. Deployed cloud backend on Render (Connected to MongoDB Atlas)
+  if (PRODUCTION_BACKEND_URL) {
+    return PRODUCTION_BACKEND_URL;
+  }
+
+  // 3. Auto-detect host IP from Metro bundle URL when running inside Expo Go
   try {
     const scriptURL = NativeModules?.SourceCode?.scriptURL;
     if (scriptURL) {

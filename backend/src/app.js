@@ -24,6 +24,19 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 /**
+ * Root Welcome Route
+ * GET /
+ */
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Welcome to SpendWise Personal Expense Tracker REST API',
+    version: '1.0.0',
+    health: '/api/v1/health',
+  });
+});
+
+/**
  * Health Check Endpoint
  * GET /api/v1/health
  * Returns production health status without leaking configuration or credentials
