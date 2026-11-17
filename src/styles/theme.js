@@ -18,6 +18,8 @@ export const colors = {
   // Semantic state colors (subtle and accessible)
   error: '#DC2626',
   errorBackground: '#FEF2F2',
+  warning: '#D97706',
+  warningBackground: '#FFFBEB',
   success: '#16A34A',
   successBackground: '#F0FDF4',
 };

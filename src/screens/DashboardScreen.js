@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { colors, spacing, borderRadius, fontWeights, layout } from '../styles/th
 import { useTransactions } from '../context/TransactionContext';
 import { useAuth } from '../context/AuthContext';
 import { ROUTES } from '../constants/routes';
+import budgetService from '../services/budgetService';
 
 export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
@@ -48,6 +49,26 @@ export default function DashboardScreen({ navigation }) {
     .substring(0, 2)
     .toUpperCase();
 
+  const [budgetSummary, setBudgetSummary] = useState(null);
+
+  const loadBudgetSummary = useCallback(async () => {
+    try {
+      const now = new Date();
+      const data = await budgetService.getBudgetSummary(now.getMonth() + 1, now.getFullYear());
+      setBudgetSummary(data);
+    } catch (e) {
+      // Gracefully silent on initial render if no network or offline
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBudgetSummary();
+  }, [loadBudgetSummary, totalExpenses]);
+
+  const handleDashboardRefresh = async () => {
+    await Promise.all([refreshTransactions(), loadBudgetSummary()]);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView
@@ -56,7 +77,7 @@ export default function DashboardScreen({ navigation }) {
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={refreshTransactions}
+            onRefresh={handleDashboardRefresh}
             tintColor={colors.black}
             colors={[colors.black]}
           />
@@ -134,9 +155,48 @@ export default function DashboardScreen({ navigation }) {
           </View>
         </View>
 
-        {/* 5. Monthly Overview Card */}
+        {/* 5. Monthly Overview & Budget Card */}
         <Card variant="white" style={styles.overviewCard}>
-          <SectionHeader title="Monthly Overview" />
+          <SectionHeader
+            title="Monthly Overview"
+            actionText={budgetSummary?.totalBudget > 0 ? "Budgets" : "Set Budget"}
+            onActionPress={() => navigation.navigate(ROUTES.BUDGETS_TAB)}
+          />
+
+          {budgetSummary && budgetSummary.totalBudget > 0 ? (
+            <View style={styles.budgetOverviewContent}>
+              <View style={styles.budgetOverviewHeader}>
+                <Text style={styles.budgetLabel}>Monthly Budget Used</Text>
+                <Text style={styles.budgetPercentText}>{budgetSummary.spendingPercentage}%</Text>
+              </View>
+
+              <View style={styles.budgetTrack}>
+                <View
+                  style={[
+                    styles.budgetFill,
+                    { width: `${Math.min(100, budgetSummary.spendingPercentage || 0)}%` },
+                    budgetSummary.overallStatus === 'exceeded'
+                      ? { backgroundColor: colors.error }
+                      : budgetSummary.overallStatus === 'warning'
+                      ? { backgroundColor: colors.warning }
+                      : { backgroundColor: colors.black },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.budgetNumbersRow}>
+                <Text style={styles.budgetSubText}>
+                  Spent: ₹ {budgetSummary.totalSpent.toLocaleString('en-IN')}
+                </Text>
+                <Text style={styles.budgetSubText}>
+                  Target: ₹ {budgetSummary.totalBudget.toLocaleString('en-IN')}
+                </Text>
+              </View>
+
+              <View style={styles.divider} />
+            </View>
+          ) : null}
+
           <View style={styles.overviewRow}>
             <Text style={styles.overviewLabel}>Total Inflow:</Text>
             <Text style={styles.overviewValue}>+ ₹ {totalIncome.toLocaleString('en-IN')}</Text>
@@ -292,6 +352,45 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: fontWeights.bold,
     color: colors.black,
+  },
+  budgetOverviewContent: {
+    marginBottom: spacing.sm,
+  },
+  budgetOverviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  budgetLabel: {
+    fontSize: 12,
+    fontWeight: fontWeights.medium,
+    color: colors.dark,
+  },
+  budgetPercentText: {
+    fontSize: 12,
+    fontWeight: fontWeights.bold,
+    color: colors.black,
+  },
+  budgetTrack: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  budgetFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  budgetNumbersRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  budgetSubText: {
+    fontSize: 11,
+    color: colors.grey,
   },
   recentSection: {
     marginBottom: spacing.xl,
