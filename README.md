@@ -244,12 +244,18 @@ SpendWise includes `backend/render.yaml` for automated Web Service deployment on
    - `CLIENT_ORIGIN=*`
 5. The service will build via `npm install` and run via `npm start`.
 
+### Live Cloud Deployment
+- **Backend Service:** [https://spendwise-backend-jcr4.onrender.com](https://spendwise-backend-jcr4.onrender.com)
+- **Health Check:** [https://spendwise-backend-jcr4.onrender.com/api/v1/health](https://spendwise-backend-jcr4.onrender.com/api/v1/health)
+- **Database:** MongoDB Atlas (Cloud Cluster 0, Singapore)
+- **Status:** **Active & Operational** (`database: connected`)
+
 ### Frontend Production Backend Connection
-In production builds, set the backend URL via:
+In production builds, the app connects directly to:
 ```bash
-EXPO_PUBLIC_API_URL=https://your-backend-service.onrender.com/api/v1
+EXPO_PUBLIC_API_URL=https://spendwise-backend-jcr4.onrender.com/api/v1
 ```
-The app will automatically communicate with the deployed cloud backend rather than the local IP address.
+The app communicates with the deployed cloud backend 24/7 rather than the local IP address.
 
 ---
 
