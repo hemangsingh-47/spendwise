@@ -32,7 +32,34 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Welcome to SpendWise Personal Expense Tracker REST API',
     version: '1.0.0',
+    apiRoot: '/api/v1',
     health: '/api/v1/health',
+  });
+});
+
+/**
+ * API v1 Root Route
+ * GET /api/v1
+ */
+app.get('/api/v1', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'SpendWise REST API v1 is active and operational',
+    version: '1.0.0',
+    health: '/api/v1/health',
+    endpoints: {
+      health: 'GET /api/v1/health',
+      auth: {
+        register: 'POST /api/v1/auth/register',
+        login: 'POST /api/v1/auth/login',
+        me: 'GET /api/v1/auth/me',
+        profile: 'PUT /api/v1/auth/profile',
+        changePassword: 'POST /api/v1/auth/change-password',
+      },
+      transactions: '/api/v1/transactions',
+      budgets: '/api/v1/budgets',
+      analytics: '/api/v1/analytics',
+    },
   });
 });
 
