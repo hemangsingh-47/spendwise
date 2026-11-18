@@ -14,7 +14,7 @@ export const setMemoryToken = (token) => {
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 45000, // 45 seconds to gracefully handle Render cloud free-tier cold-starts
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -47,7 +47,9 @@ api.interceptors.response.use(
   async (error) => {
     let errorMessage = 'Network error. Please check your internet connection and backend server.';
 
-    if (error.response) {
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      errorMessage = 'Cloud backend is waking up from sleep. Please wait a few seconds and tap again.';
+    } else if (error.response) {
       // Backend returned an error response
       errorMessage = error.response.data?.message || `Server error (${error.response.status})`;
 
@@ -56,7 +58,7 @@ api.interceptors.response.use(
         console.warn('[API-Client] 401 Unauthorized encountered:', errorMessage);
       }
     } else if (error.request) {
-      errorMessage = `Cannot connect to server at ${API_BASE_URL}. Ensure the Node.js backend is running.`;
+      errorMessage = `Cannot connect to server at ${API_BASE_URL}. Ensure your internet is active and cloud server is running.`;
     }
 
     const enhancedError = new Error(errorMessage);

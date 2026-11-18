@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import authService from '../services/authService';
+import api from '../services/api';
 
 /**
  * SpendWise Authentication Context
@@ -17,6 +18,9 @@ export const AuthProvider = ({ children }) => {
    * Check persistent session on app startup
    */
   useEffect(() => {
+    // Proactively ping cloud server on app startup to wake up Render free tier from sleep
+    api.get('/health').catch(() => {});
+
     const restoreSession = async () => {
       try {
         const storedToken = await authService.getToken();
